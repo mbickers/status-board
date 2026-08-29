@@ -19,6 +19,14 @@ run = "opam install . --deps-only --locked --yes && touch _opam/.deps_installed"
 [tasks.lock]
 run = "opam lock ."
 
+[tasks.format]
+depends = ["deps"]
+run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.mli' \) -exec opam exec -- ocamlformat --inplace {} +'''
+
+[tasks.pre-commit]
+depends = ["deps"]
+run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.mli' \) -exec opam exec -- ocamlformat --check {} +'''
+
 [tasks.build]
 depends = ["deps"]
 run = "opam exec -- dune build data_service/main.exe render_service/main.exe"

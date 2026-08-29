@@ -12,7 +12,7 @@ depends: [
   "async" {>= "v0.17" & < "v0.18"}
   "cohttp-async" {>= "6.2.2" & < "6.3"}
   "ocaml-lsp-server"
-  "ocamlformat"
+  "ocamlformat" {= "0.29.0"}
   "ppx_jane" {>= "v0.17" & < "v0.18"}
   "ppx_yojson_conv" {>= "v0.17" & < "v0.18"}
   "uri"
