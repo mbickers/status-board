@@ -1,0 +1,8 @@
+(library
+ (name data_service)
+ (modules data_service))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries data_service))

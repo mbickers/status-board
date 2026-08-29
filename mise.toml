@@ -1,0 +1,19 @@
+[settings]
+task.source_freshness_hash_contents = true
+
+[tools]
+watchexec = "2.5.1"
+
+[tasks.build]
+run = "opam exec -- dune build data_service/main.exe render_service/main.exe"
+
+[tasks.dev]
+depends = ["dev:data_service", "dev:render_service"]
+
+[tasks."dev:data_service"]
+depends = ["build"]
+run = "_build/default/data_service/main.exe"
+
+[tasks."dev:render_service"]
+depends = ["build"]
+run = "opam exec -- watchexec --restart --poll 500ms --watch render_service --exts ml,dune -- dune exec render_service/main.exe"

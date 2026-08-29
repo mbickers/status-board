@@ -1,0 +1,8 @@
+(library
+ (name render_service)
+ (modules render_service))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries render_service))
