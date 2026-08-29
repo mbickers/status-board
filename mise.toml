@@ -2,18 +2,65 @@
 task.source_freshness_hash_contents = true
 
 [tools]
+opam = "2.1.5"
 watchexec = "2.5.1"
 
+[tasks.bootstrap]
+sources = ["mise.toml"]
+outputs = ["_opam/.opam-switch/switch-config"]
+run = "test -d _opam || opam switch create . 5.1.1 --no-install --yes --repositories=default=https://opam.ocaml.org"
+
+[tasks.deps]
+depends = ["bootstrap"]
+sources = ["*.opam", "*.opam.locked"]
+outputs = ["_opam/.deps_installed"]
+run = "opam install . --deps-only --locked --yes && touch _opam/.deps_installed"
+
+[tasks.lock]
+run = "opam lock ."
+
 [tasks.build]
+depends = ["deps"]
 run = "opam exec -- dune build data_service/main.exe render_service/main.exe"
 
+[tasks."build:watch"]
+depends = ["deps"]
+run = "opam exec -- dune build --watch data_service/main.exe render_service/main.exe"
+
+[tasks.test]
+depends = ["deps"]
+run = "opam exec -- dune build data_service/main.exe render_service/main.exe @runtest"
+
+[tasks."test:watch"]
+depends = ["deps"]
+run = "opam exec -- dune build --watch data_service/main.exe render_service/main.exe @runtest"
+
 [tasks.dev]
-depends = ["dev:data_service", "dev:render_service"]
+depends = ["dev:data_service", "dev:render_service", "dev:test"]
 
 [tasks."dev:data_service"]
-depends = ["build"]
+depends = ["dev:prepare"]
 run = "_build/default/data_service/main.exe"
 
+[tasks."dev:prepare"]
+depends = ["deps"]
+sources = ["data_service/**/*.ml", "data_service/dune", "render_service/**/*.ml", "render_service/dune", "dune-project"]
+outputs = ["_build/default/data_service/main.exe", "_build/default/render_service/main.exe", "_build/render_tests_passed"]
+run = "opam exec -- dune build data_service/main.exe render_service/main.exe @runtest && touch _build/render_tests_passed"
+
 [tasks."dev:render_service"]
-depends = ["build"]
-run = "opam exec -- watchexec --restart --poll 500ms --watch render_service --exts ml,dune -- dune exec render_service/main.exe"
+depends = ["dev:prepare"]
+run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/main.exe"
+
+[tasks."dev:test"]
+depends = ["dev:prepare"]
+run = '''
+opam exec -- watchexec \
+  --restart \
+  --postpone \
+  --watch data_service \
+  --watch render_service \
+  --watch dune-project \
+  --watch status_board.opam \
+  -- "opam exec -- dune build render_service/main.exe @runtest && touch _build/render_tests_passed"
+'''

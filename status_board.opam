@@ -1,0 +1,20 @@
+opam-version: "2.0"
+synopsis: "Personal status board"
+maintainer: "mbickers@fastmail.com"
+authors: ["mbickers@fastmail.com"]
+homepage: "maxbickers.com"
+bug-reports: "mbickers@fastmail.com"
+
+depends: [
+  "ocaml" {= "5.1.1"}
+  "dune" {>= "3.12"}
+  "core" {>= "v0.17" & < "v0.18"}
+  "async" {>= "v0.17" & < "v0.18"}
+  "cohttp-async" {>= "6.2.2" & < "6.3"}
+  "ocaml-lsp-server"
+  "ocamlformat"
+  "ppx_jane" {>= "v0.17" & < "v0.18"}
+  "ppx_yojson_conv" {>= "v0.17" & < "v0.18"}
+  "uri"
+  "yojson"
+]
