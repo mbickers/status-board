@@ -1,41 +1,44 @@
 open! Core
 open! Async
 
+let rect buffer ~color (x1, y1) (x2, y2) =
+  for y = y1 to y2 - 1 do
+    for x = x1 to x2 - 1 do
+      Image.write_grey buffer x y color
+    done
+  done
+;;
+
+let text buffer ~font ~origin_x ~baseline_y ~size string =
+  let rendered_text = Font.render_text font string ~size in
+  for y = 0 to rendered_text.height - 1 do
+    for x = 0 to rendered_text.width - 1 do
+      if Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
+      then
+        Image.write_grey
+          buffer
+          (origin_x - rendered_text.origin_x + x)
+          (baseline_y - rendered_text.baseline_y + y)
+          0
+    done
+  done
+;;
+
 let render cache =
   let%bind stations = Citibike.query cache in
-  let display_resolution = { Screen_render.Size.width = 800; height = 480 } in
-  let buffer =
-    Or_error.try_with (fun () ->
-      let buffer =
-        Cairo.Image.create
-          Cairo.Image.RGB24
-          ~w:display_resolution.width
-          ~h:display_resolution.height
-      in
-      let context = Cairo.create buffer in
-      Cairo.set_source_rgb context 1. 1. 1.;
-      Cairo.paint context;
-      Cairo.Font_face.set
-        context
-        (Cairo.Ft.create_for_ft_face (Cairo.Ft.face "server/fonts/inter_medium.ttf"));
-      Cairo.set_font_size context 80.;
-      let text = "hello world" in
-      let text_extents = Cairo.text_extents context text in
-      Cairo.move_to
-        context
-        (((Float.of_int display_resolution.width -. text_extents.width) /. 2.)
-         -. text_extents.x_bearing)
-        (((Float.of_int display_resolution.height -. text_extents.height) /. 2.)
-         -. text_extents.y_bearing);
-      Cairo.set_source_rgb context 0. 0. 0.;
-      Cairo.show_text context text;
-      buffer)
-  in
+  let w = 800
+  and h = 480 in
   return
-    (let%map.Or_error buffer = buffer in
+    (let%bind.Or_error font_contents =
+       Or_error.try_with (fun () -> In_channel.read_all "server/fonts/inter_medium.ttf")
+     in
+     let%map.Or_error font = Font.create font_contents in
+     let buffer = Image.create_grey ~max_val:1 w h in
+     rect buffer ~color:1 (0, 0) (w, h);
+     text buffer ~font ~origin_x:222 ~baseline_y:277 ~size:80. "hello world";
      { Screen_render.buffer
      ; time_until_refresh = Time_ns.Span.of_sec 30.
-     ; display_resolution
+     ; display_resolution = { Screen_render.Size.width = w; height = h }
      ; debug_info =
          stations
          |> Latest_result.map ~f:(fun stations ->

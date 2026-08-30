@@ -12,9 +12,8 @@ depends: [
   "core" {>= "v0.17" & < "v0.18"}
   "async" {>= "v0.17" & < "v0.18"}
   "async_ssl" {>= "v0.17" & < "v0.18"}
-  "cairo2" {= "0.6.5"}
   "cohttp-async" {>= "6.2.2" & < "6.3"}
-  "conf-freetype"
+  "imagelib" {= "20221222"}
   "ocaml-lsp-server" {>= "1.18.0" & < "1.19"}
   # Version 6 eagerly initializes generated JSON decoders, which crashes on
   # the mutually recursive modules generated from the GTFS Realtime schema.
@@ -22,6 +21,7 @@ depends: [
   "ocamlformat" {= "0.29.0"}
   "ppx_jane" {>= "v0.17" & < "v0.18"}
   "ppx_yojson_conv" {>= "v0.17" & < "v0.18"}
+  "stb_truetype" {= "0.7"}
   "uri"
   "yojson"
 ]

@@ -3,9 +3,10 @@
  (libraries
   core
   async
-  cairo2
   cohttp-async
+  imagelib
   mustache
+  stb_truetype
   uri
   yojson
   mta_protobuf
