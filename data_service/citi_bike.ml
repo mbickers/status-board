@@ -1,10 +1,7 @@
 open! Core
 open! Async
 
-let join
-      (station_information : Gbfs.station_information list)
-      (station_statuses : Gbfs.station_status list)
-  =
+let join station_information station_statuses =
   let open Or_error.Let_syntax in
   let%bind status_by_station_id =
     station_statuses
@@ -21,8 +18,8 @@ let join
             Int63.Overflow_exn.(
               Int63.of_int status.last_reported * Int63.of_int 1_000_000_000))
         in
-        let station : Data_service_rpc.Station.t =
-          { station_id = information.station_id
+        let station =
+          { Data_service_rpc.Station.station_id = information.station_id
           ; name = information.name
           ; latitude = information.lat
           ; longitude = information.lon
@@ -46,17 +43,8 @@ let join
 
 let fetch_snapshot () =
   let open Deferred.Or_error.Let_syntax in
-  let%bind discovery =
-    Gbfs.fetch "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json" Gbfs.discovery_of_yojson
-  in
-  let%bind information_url =
-    Gbfs.find_feed_url discovery "station_information" |> Deferred.return
-  in
-  let%bind status_url =
-    Gbfs.find_feed_url discovery "station_status" |> Deferred.return
-  in
-  let%bind information_feed =
-    Gbfs.fetch information_url Gbfs.station_information_feed_of_yojson
-  and status_feed = Gbfs.fetch status_url Gbfs.station_status_feed_of_yojson in
+  let%bind gbfs = Gbfs.discover "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json" in
+  let%bind information_feed = Gbfs.fetch gbfs Gbfs.Feed.station_information
+  and status_feed = Gbfs.fetch gbfs Gbfs.Feed.station_status in
   join information_feed.data.stations status_feed.data.stations |> Deferred.return
 ;;

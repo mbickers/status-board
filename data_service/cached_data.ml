@@ -33,14 +33,12 @@ let get t =
             match previous with
             | None -> None
             | Some { value = Latest_result.Success value; at } ->
-              let last_good : _ Completed.t = { value; at } in
-              Some last_good
+              Some { Completed.value; at }
             | Some { value = Latest_result.Error { last_good; _ }; _ } -> last_good
           in
           Latest_result.Error { error; last_good }
       in
-      let result : _ Latest_result.t = { value; at = Time_ns.now () } in
-      result
+      { Completed.value; at = Time_ns.now () }
     in
     t.state <- Fetching result;
     upon result (fun result -> t.state <- Idle (Some result));

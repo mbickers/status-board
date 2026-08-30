@@ -18,18 +18,16 @@ type 'a outcome =
 
 type 'a t = 'a outcome Completed.t [@@deriving bin_io, sexp]
 
-let map (t : _ t) ~f =
+let map t ~f =
   let value =
-    match t.value with
+    match t.Completed.value with
     | Success value -> Success (f value)
     | Error { error; last_good } ->
       let last_good =
-        Option.map last_good ~f:(fun (t : _ Completed.t) ->
-          let mapped : _ Completed.t = { value = f t.value; at = t.at } in
-          mapped)
+        Option.map last_good ~f:(fun t ->
+          { Completed.value = f t.Completed.value; at = t.at })
       in
       Error { error; last_good }
   in
-  let mapped : _ t = { value; at = t.at } in
-  mapped
+  { Completed.value; at = t.at }
 ;;

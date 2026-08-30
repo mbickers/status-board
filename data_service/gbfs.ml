@@ -73,17 +73,7 @@ let decode decoder contents =
   Or_error.try_with (fun () -> decoder json)
 ;;
 
-let find_feed_url (discovery : discovery) name =
-  let data : discovery_data = discovery.data in
-  match
-    List.find data.en.feeds ~f:(fun (feed : discovery_feed) ->
-      String.equal feed.name name)
-  with
-  | Some feed -> Ok feed.url
-  | None -> Or_error.errorf "GBFS discovery response has no %s feed" name
-;;
-
-let fetch url decoder =
+let fetch_url url decoder =
   let open Deferred.Or_error.Let_syntax in
   let%bind uri = Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return in
   let%bind response, body =
@@ -101,4 +91,40 @@ let fetch url decoder =
       url
       status_code
       contents
+;;
+
+module Feed = struct
+  type 'a t =
+    { name : string
+    ; decoder : Yojson.Safe.t -> 'a
+    }
+
+  let station_information =
+    { name = "station_information"; decoder = station_information_feed_of_yojson }
+  ;;
+
+  let station_status =
+    { name = "station_status"; decoder = station_status_feed_of_yojson }
+  ;;
+end
+
+type t = { feed_urls : string String.Map.t }
+
+let discover url =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind discovery = fetch_url url discovery_of_yojson in
+  let data = discovery.data in
+  let%map feed_urls =
+    data.en.feeds
+    |> List.map ~f:(fun feed -> feed.name, feed.url)
+    |> String.Map.of_alist_or_error
+    |> Deferred.return
+  in
+  { feed_urls }
+;;
+
+let fetch t (feed : _ Feed.t) =
+  match Map.find t.feed_urls feed.name with
+  | Some url -> fetch_url url feed.decoder
+  | None -> Deferred.Or_error.errorf "GBFS discovery response has no %s feed" feed.name
 ;;

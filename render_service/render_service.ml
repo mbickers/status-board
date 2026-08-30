@@ -59,9 +59,7 @@ let print_stations stations ~station_ids =
 let run ~host ~port =
   let open Deferred.Let_syntax in
   let%bind connection = connect ~host ~port in
-  let query : Data_service_rpc.Get_data.Query.t =
-    { citibike_station_ids = station_ids }
-  in
+  let query = { Data_service_rpc.Get_data.Query.citibike_station_ids = station_ids } in
   match%bind Rpc.Rpc.dispatch Data_service_rpc.Get_data.rpc connection query with
   | Error error ->
     eprintf "Citi Bike RPC failed: %s\n%!" (Error.to_string_hum error);
