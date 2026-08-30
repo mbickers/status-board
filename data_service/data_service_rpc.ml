@@ -1,5 +1,6 @@
 open! Core
 open! Async
+module Latest_result = Latest_result
 
 module Station = struct
   type t =
@@ -16,23 +17,24 @@ module Station = struct
     ; is_installed : bool
     ; is_renting : bool
     ; is_returning : bool
-    ; last_reported : int
+    ; last_reported : Time_ns.Alternate_sexp.t
     }
   [@@deriving bin_io, sexp]
 end
 
-module Get_station = struct
+module Get_data = struct
   module Query = struct
-    type t = string [@@deriving bin_io, sexp]
+    type t = { citibike_station_ids : string list } [@@deriving bin_io, sexp]
   end
 
   module Response = struct
-    type t = Station.t option [@@deriving bin_io, sexp]
+    type t = { stations : Station.t String.Map.t Latest_result.t }
+    [@@deriving bin_io, sexp]
   end
 
   let rpc =
     Rpc.Rpc.create
-      ~name:"get-citi-bike-station"
+      ~name:"get-data"
       ~version:1
       ~bin_query:Query.bin_t
       ~bin_response:Response.bin_t

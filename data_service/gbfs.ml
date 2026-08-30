@@ -1,6 +1,5 @@
 open! Core
 open! Async
-
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 
 type discovery_feed =
@@ -68,22 +67,38 @@ type station_status_feed =
   }
 [@@deriving yojson] [@@yojson.allow_extra_fields]
 
-let decode decoder contents = contents |> Yojson.Safe.from_string |> decoder
+let decode decoder contents =
+  let open Or_error.Let_syntax in
+  let%bind json = Or_error.try_with (fun () -> Yojson.Safe.from_string contents) in
+  Or_error.try_with (fun () -> decoder json)
+;;
 
 let find_feed_url (discovery : discovery) name =
   let data : discovery_data = discovery.data in
-  data.en.feeds
-  |> List.find ~f:(fun (feed : discovery_feed) -> String.equal feed.name name)
-  |> Option.value_exn
-  |> fun (feed : discovery_feed) -> feed.url
+  match
+    List.find data.en.feeds ~f:(fun (feed : discovery_feed) ->
+      String.equal feed.name name)
+  with
+  | Some feed -> Ok feed.url
+  | None -> Or_error.errorf "GBFS discovery response has no %s feed" name
 ;;
 
 let fetch url decoder =
-  let open Deferred.Let_syntax in
-  let%bind response, body = Cohttp_async.Client.get (Uri.of_string url) in
-  let%map contents = Cohttp_async.Body.to_string body in
+  let open Deferred.Or_error.Let_syntax in
+  let%bind uri = Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return in
+  let%bind response, body =
+    Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
+  in
+  let%bind contents =
+    Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
+  in
   let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
   if Cohttp.Code.is_success status_code
-  then decode decoder contents
-  else failwithf "GBFS request to %s failed with HTTP %d: %s" url status_code contents ()
+  then decode decoder contents |> Deferred.return
+  else
+    Deferred.Or_error.errorf
+      "GBFS request to %s failed with HTTP %d: %s"
+      url
+      status_code
+      contents
 ;;

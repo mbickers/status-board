@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries core async data_service)
+ (preprocess
+  (pps ppx_jane)))

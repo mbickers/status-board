@@ -1,11 +1,5 @@
 (library
  (name render_service)
- (modules render_service)
  (libraries core async data_service_rpc)
  (preprocess
   (pps ppx_jane)))
-
-(executable
- (name main)
- (modules main)
- (libraries core async render_service))

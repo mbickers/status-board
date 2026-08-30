@@ -1,13 +1,12 @@
 open! Core
 open! Async
 
-let station_id = "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+let station_ids = [ "66dc8768-0aca-11e7-82f6-3863bb44ef7c" ]
 
-let rec connect () =
+let rec connect ~host ~port =
   let open Deferred.Let_syntax in
   let where_to_connect =
-    Host_and_port.create ~host:"127.0.0.1" ~port:8090
-    |> Tcp.Where_to_connect.of_host_and_port
+    Host_and_port.create ~host ~port |> Tcp.Where_to_connect.of_host_and_port
   in
   let%bind result = Rpc.Connection.client where_to_connect in
   match result with
@@ -15,12 +14,25 @@ let rec connect () =
   | Error error ->
     eprintf "Waiting for data_service: %s\n%!" (Exn.to_string error);
     let%bind () = Clock_ns.after (Time_ns.Span.of_sec 1.) in
-    connect ()
+    connect ~host ~port
 ;;
 
 let print_station (station : Data_service_rpc.Station.t) =
   printf
-    "%s\nStation ID: %s\nLocation: %.6f, %.6f\nCapacity: %d\nBikes available: %d\nE-bikes available: %d\nBikes disabled: %d\nDocks available: %d\nDocks disabled: %d\nInstalled: %b\nRenting: %b\nReturning: %b\nLast reported: %d\n%!"
+    "%s\n\
+     Station ID: %s\n\
+     Location: %.6f, %.6f\n\
+     Capacity: %d\n\
+     Bikes available: %d\n\
+     E-bikes available: %d\n\
+     Bikes disabled: %d\n\
+     Docks available: %d\n\
+     Docks disabled: %d\n\
+     Installed: %b\n\
+     Renting: %b\n\
+     Returning: %b\n\
+     Last reported: %s\n\
+     %!"
     station.name
     station.station_id
     station.latitude
@@ -34,18 +46,39 @@ let print_station (station : Data_service_rpc.Station.t) =
     station.is_installed
     station.is_renting
     station.is_returning
-    station.last_reported
+    (Time_ns.to_string_utc station.last_reported)
 ;;
 
-let run () =
+let print_stations stations ~station_ids =
+  List.iter station_ids ~f:(fun station_id ->
+    match Map.find stations station_id with
+    | Some station -> print_station station
+    | None -> eprintf "Citi Bike station was not found: %s\n%!" station_id)
+;;
+
+let run ~host ~port =
   let open Deferred.Let_syntax in
-  let%bind connection = connect () in
-  let%bind response =
-    Rpc.Rpc.dispatch Data_service_rpc.Get_station.rpc connection station_id
+  let%bind connection = connect ~host ~port in
+  let query : Data_service_rpc.Get_data.Query.t =
+    { citibike_station_ids = station_ids }
   in
-  (match response with
-   | Error error -> raise (Error.to_exn error)
-   | Ok None -> raise_s [%message "Citi Bike station was not found" station_id]
-   | Ok (Some station) -> print_station station);
-  Deferred.never ()
+  match%bind Rpc.Rpc.dispatch Data_service_rpc.Get_data.rpc connection query with
+  | Error error ->
+    eprintf "Citi Bike RPC failed: %s\n%!" (Error.to_string_hum error);
+    Shutdown.exit 1
+  | Ok response ->
+    (match response.stations.value with
+     | Data_service_rpc.Latest_result.Success stations ->
+       print_stations stations ~station_ids;
+       Deferred.never ()
+     | Data_service_rpc.Latest_result.Error { error; last_good = None } ->
+       eprintf "Citi Bike fetch failed: %s\n%!" (Error.to_string_hum error);
+       Shutdown.exit 1
+     | Data_service_rpc.Latest_result.Error { error; last_good = Some last_good } ->
+       eprintf
+         "Citi Bike refresh failed; using data fetched at %s: %s\n%!"
+         (Time_ns.to_string_utc last_good.at)
+         (Error.to_string_hum error);
+       print_stations last_good.value ~station_ids;
+       Deferred.never ())
 ;;

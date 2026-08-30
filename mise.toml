@@ -29,36 +29,36 @@ run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.ml
 
 [tasks.build]
 depends = ["deps"]
-run = "opam exec -- dune build data_service/main.exe render_service/main.exe"
+run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe"
 
 [tasks."build:watch"]
 depends = ["deps"]
-run = "opam exec -- dune build --watch data_service/main.exe render_service/main.exe"
+run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe"
 
 [tasks.test]
 depends = ["deps"]
-run = "opam exec -- dune build data_service/main.exe render_service/main.exe @runtest"
+run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest"
 
 [tasks."test:watch"]
 depends = ["deps"]
-run = "opam exec -- dune build --watch data_service/main.exe render_service/main.exe @runtest"
+run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe @runtest"
 
 [tasks.dev]
 depends = ["dev:data_service", "dev:render_service", "dev:test"]
 
 [tasks."dev:data_service"]
 depends = ["dev:prepare"]
-run = "_build/default/data_service/main.exe"
+run = "_build/default/data_service/bin/main.exe -port 8090"
 
 [tasks."dev:prepare"]
 depends = ["deps"]
-sources = ["data_service/**/*.ml", "data_service/dune", "render_service/**/*.ml", "render_service/dune", "dune-project"]
-outputs = ["_build/default/data_service/main.exe", "_build/default/render_service/main.exe", "_build/render_tests_passed"]
-run = "opam exec -- dune build data_service/main.exe render_service/main.exe @runtest && touch _build/render_tests_passed"
+sources = ["data_service/**/*.ml", "data_service/**/dune", "render_service/**/*.ml", "render_service/**/dune", "dune-project"]
+outputs = ["_build/default/data_service/bin/main.exe", "_build/default/render_service/bin/main.exe", "_build/render_tests_passed"]
+run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest && touch _build/render_tests_passed"
 
 [tasks."dev:render_service"]
 depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/main.exe"
+run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -host 127.0.0.1 -port 8090"
 
 [tasks."dev:test"]
 depends = ["dev:prepare"]
@@ -70,5 +70,5 @@ opam exec -- watchexec \
   --watch render_service \
   --watch dune-project \
   --watch status_board.opam \
-  -- "opam exec -- dune build render_service/main.exe @runtest && touch _build/render_tests_passed"
+  -- "opam exec -- dune build render_service/bin/main.exe @runtest && touch _build/render_tests_passed"
 '''
