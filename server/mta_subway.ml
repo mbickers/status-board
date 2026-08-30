@@ -63,12 +63,13 @@ let realtime_feed_url realtime_feed =
 ;;
 
 let fetch_message url =
-  let open Deferred.Or_error.Let_syntax in
-  let%bind uri = Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return in
-  let%bind response, body =
+  let%bind.Deferred.Or_error uri =
+    Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return
+  in
+  let%bind.Deferred.Or_error response, body =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
   in
-  let%bind contents =
+  let%bind.Deferred.Or_error contents =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
   in
   let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
@@ -140,8 +141,9 @@ let upcoming_arrivals feed_message =
 ;;
 
 let fetch_upcoming_arrivals realtime_feed =
-  let open Deferred.Or_error.Let_syntax in
-  let%bind feed_message = realtime_feed |> realtime_feed_url |> fetch_message in
+  let%bind.Deferred.Or_error feed_message =
+    realtime_feed |> realtime_feed_url |> fetch_message
+  in
   upcoming_arrivals feed_message |> Deferred.return
 ;;
 
@@ -178,8 +180,7 @@ let alert (entity : Gtfs.FeedEntity.t) =
 ;;
 
 let fetch_all_alerts () =
-  let open Deferred.Or_error.Let_syntax in
-  let%map feed_message =
+  let%map.Deferred.Or_error feed_message =
     fetch_message
       "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fall-alerts"
   in
@@ -187,7 +188,6 @@ let fetch_all_alerts () =
 ;;
 
 let query cache ~which_feeds =
-  let open Deferred.Let_syntax in
   let max_age = Time_ns.Span.of_sec 30. in
   let realtime_feeds = List.dedup_and_sort which_feeds ~compare:Realtime_feed.compare in
   let%map upcoming_arrival_results =

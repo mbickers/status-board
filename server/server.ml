@@ -2,9 +2,8 @@ open! Core
 open! Async
 
 let run ~cache_path ~port =
-  let open Deferred.Or_error.Let_syntax in
   let autoreload = Autoreload_on_restart.create ~monitor_path:"/wait-for-restart" in
-  let%bind preview_handler =
+  let%bind.Deferred.Or_error preview_handler =
     Preview.create
       ~autoreload_script:(Autoreload_on_restart.script autoreload)
       ~cache:(Cache.create ~path:cache_path)

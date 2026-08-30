@@ -49,7 +49,6 @@ let response_action response =
 let respond t ~name =
   match Map.find t.renderers name with
   | Some renderer ->
-    let open Deferred.Let_syntax in
     let%bind screen_render = renderer t.cache in
     (match page_html t screen_render with
      | Ok html ->

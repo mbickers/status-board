@@ -62,9 +62,11 @@ let join station_information station_statuses =
 ;;
 
 let fetch () =
-  let open Deferred.Or_error.Let_syntax in
-  let%bind gbfs = Gbfs.discover "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json" in
-  let%bind information_feed = Gbfs.fetch gbfs Gbfs.Feed.station_information
+  let%bind.Deferred.Or_error gbfs =
+    Gbfs.discover "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json"
+  in
+  let%bind.Deferred.Or_error information_feed =
+    Gbfs.fetch gbfs Gbfs.Feed.station_information
   and status_feed = Gbfs.fetch gbfs Gbfs.Feed.station_status in
   join information_feed.data.stations status_feed.data.stations |> Deferred.return
 ;;

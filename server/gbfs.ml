@@ -93,12 +93,13 @@ let decode decoder contents =
 ;;
 
 let fetch_url url decoder =
-  let open Deferred.Or_error.Let_syntax in
-  let%bind uri = Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return in
-  let%bind response, body =
+  let%bind.Deferred.Or_error uri =
+    Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return
+  in
+  let%bind.Deferred.Or_error response, body =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
   in
-  let%bind contents =
+  let%bind.Deferred.Or_error contents =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
   in
   let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
@@ -132,9 +133,8 @@ module Discovered_endpoints = struct
 end
 
 let discover url =
-  let open Deferred.Or_error.Let_syntax in
-  let%bind discovery = fetch_url url Discovery.t_of_yojson in
-  let%map feed_urls =
+  let%bind.Deferred.Or_error discovery = fetch_url url Discovery.t_of_yojson in
+  let%map.Deferred.Or_error feed_urls =
     discovery.data.en.feeds
     |> List.map ~f:(fun feed -> feed.name, feed.url)
     |> String.Map.of_alist_or_error

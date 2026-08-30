@@ -15,7 +15,6 @@ let path_for_key t ~key = Filename.concat t.path [%string "%{key}.sexp"]
 
 let read t (type value) (module M : Sexpable with type t = value) ~key =
   let path = path_for_key t ~key in
-  let open Deferred.Let_syntax in
   let%bind exists = Sys.file_exists path in
   match exists with
   | `No -> return None
@@ -45,7 +44,6 @@ let read t (type value) (module M : Sexpable with type t = value) ~key =
 let write t (type value) (module M : Sexpable with type t = value) ~key value =
   let path = path_for_key t ~key in
   let contents = Latest_result.sexp_of_t M.sexp_of_t value |> Sexp.to_string_hum in
-  let open Deferred.Let_syntax in
   let%bind directory = Monitor.try_with_or_error (fun () -> Unix.mkdir ~p:() t.path) in
   match directory with
   | Error error ->
@@ -70,7 +68,6 @@ let last_good =
 ;;
 
 let get t m ~max_age ~fetch ~key =
-  let open Deferred.Let_syntax in
   let%bind previous = read t m ~key in
   let now = Time_ns.now () in
   match previous with

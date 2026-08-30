@@ -2,7 +2,6 @@ open! Core
 open! Async
 
 let render cache =
-  let open Deferred.Let_syntax in
   let%map stations = Citibike.query cache in
   { Screen_render.text = "hello world"
   ; time_until_refresh = Time_ns.Span.of_sec 30.
