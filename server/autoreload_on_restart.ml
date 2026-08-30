@@ -27,17 +27,17 @@ let respond t request =
     in
     return (`Expert (response, fun _reader writer -> Writer.close_finished writer))
   | Some _ ->
-    let%map response =
+    let%bind response =
       Cohttp_async.Server.respond_string
         ~headers:(Cohttp.Header.init_with "cache-control" "no-store")
         ""
     in
-    `Response response
+    return (`Response response)
   | None ->
-    let%map response =
+    let%bind response =
       Cohttp_async.Server.respond_string ~status:`Bad_request "Missing instance-id"
     in
-    `Response response
+    return (`Response response)
 ;;
 
 let script t =

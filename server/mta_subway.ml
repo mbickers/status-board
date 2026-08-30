@@ -64,7 +64,7 @@ let realtime_feed_url realtime_feed =
 
 let fetch_message url =
   let%bind.Deferred.Or_error uri =
-    Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return
+    Or_error.try_with (fun () -> Uri.of_string url) |> return
   in
   let%bind.Deferred.Or_error response, body =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
@@ -78,7 +78,7 @@ let fetch_message url =
     Gtfs.FeedMessage.from_proto (Ocaml_protoc_plugin.Reader.create contents)
     |> Core.Result.map_error ~f:(fun error ->
       Error.of_string (Ocaml_protoc_plugin.Result.show_error error))
-    |> Deferred.return
+    |> return
   else Deferred.Or_error.errorf "MTA request to %s failed with HTTP %d" url status_code
 ;;
 
@@ -86,11 +86,9 @@ let time_ns_of_seconds_since_epoch seconds =
   match Int63.of_int64 seconds with
   | None -> Or_error.errorf "Timestamp is outside the Time_ns range: %Ld" seconds
   | Some seconds ->
-    let%map.Or_error nanoseconds =
-      Or_error.try_with (fun () ->
-        Int63.Overflow_exn.(seconds * Int63.of_int 1_000_000_000))
-    in
-    Time_ns.of_int63_ns_since_epoch nanoseconds
+    Or_error.try_with (fun () ->
+      Int63.Overflow_exn.(seconds * Int63.of_int 1_000_000_000))
+    |> Or_error.map ~f:Time_ns.of_int63_ns_since_epoch
 ;;
 
 let station_id_of_stop_id stop_id =
@@ -109,20 +107,19 @@ let arrival
   =
   match trip.route_id, stop_time_update.stop_id, stop_time_update.arrival with
   | Some route_id, Some stop_id, Some { time = Some arrival_time; _ } ->
-    let%map.Or_error arrives_at = time_ns_of_seconds_since_epoch arrival_time in
-    if Time_ns.compare arrives_at now < 0
-    then None
-    else
-      Some
-        ( station_id_of_stop_id stop_id
-        , { Arrival.route_id; trip_id = trip.trip_id; stop_id; arrives_at } )
+    Or_error.map (time_ns_of_seconds_since_epoch arrival_time) ~f:(fun arrives_at ->
+      if Time_ns.compare arrives_at now < 0
+      then None
+      else
+        Some
+          ( station_id_of_stop_id stop_id
+          , { Arrival.route_id; trip_id = trip.trip_id; stop_id; arrives_at } ))
   | _ -> Ok None
 ;;
 
 let upcoming_arrivals feed_message =
   let now = Time_ns.now () in
-  let open Or_error.Let_syntax in
-  let%map arrivals =
+  let arrivals =
     feed_message.Gtfs.FeedMessage.entity
     |> List.concat_map ~f:(fun entity ->
       match entity.Gtfs.FeedEntity.trip_update with
@@ -131,20 +128,21 @@ let upcoming_arrivals feed_message =
         List.map trip_update.stop_time_update ~f:(arrival ~now trip_update.trip))
     |> Or_error.combine_errors
   in
-  arrivals
-  |> List.filter_opt
-  |> String.Map.of_alist_multi
-  |> Map.map
-       ~f:
-         (List.sort ~compare:(fun left right ->
-            Time_ns.compare left.Arrival.arrives_at right.arrives_at))
+  Or_error.map arrivals ~f:(fun arrivals ->
+    arrivals
+    |> List.filter_opt
+    |> String.Map.of_alist_multi
+    |> Map.map ~f:(fun arrivals ->
+      arrivals
+      |> List.sort ~compare:(fun left right ->
+        Time_ns.compare left.Arrival.arrives_at right.arrives_at)))
 ;;
 
 let fetch_upcoming_arrivals realtime_feed =
   let%bind.Deferred.Or_error feed_message =
     realtime_feed |> realtime_feed_url |> fetch_message
   in
-  upcoming_arrivals feed_message |> Deferred.return
+  return (upcoming_arrivals feed_message)
 ;;
 
 let translated_text translated_string =
@@ -180,17 +178,17 @@ let alert (entity : Gtfs.FeedEntity.t) =
 ;;
 
 let fetch_all_alerts () =
-  let%map.Deferred.Or_error feed_message =
+  let%bind.Deferred.Or_error feed_message =
     fetch_message
       "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fall-alerts"
   in
-  List.filter_map feed_message.entity ~f:alert
+  return (Ok (List.filter_map feed_message.entity ~f:alert))
 ;;
 
 let query cache ~which_feeds =
   let max_age = Time_ns.Span.of_sec 30. in
   let realtime_feeds = List.dedup_and_sort which_feeds ~compare:Realtime_feed.compare in
-  let%map upcoming_arrival_results =
+  let%bind upcoming_arrival_results =
     Deferred.List.map realtime_feeds ~how:`Parallel ~f:(fun realtime_feed ->
       let key =
         let feed_name =
@@ -219,51 +217,52 @@ let query cache ~which_feeds =
       ~fetch:fetch_all_alerts
       ~key:"mta-all-alerts"
   in
-  let open Or_error.Let_syntax in
-  let%bind upcoming_arrivals_by_stop_id =
-    upcoming_arrival_results
-    |> List.map ~f:Latest_result.latest_success
-    |> Or_error.combine_errors
-    |> Or_error.map ~f:(fun completed ->
-      completed
-      |> List.concat_map ~f:(fun completed ->
-        Map.to_alist completed.Latest_result.Completed.value)
-      |> String.Map.of_alist_multi
-      |> Map.map ~f:(fun arrivals ->
-        arrivals
-        |> List.concat
-        |> List.sort ~compare:(fun left right ->
-          Time_ns.compare left.Arrival.arrives_at right.arrives_at)))
-  and all_alerts =
-    all_alerts_result
-    |> Latest_result.latest_success
-    |> Or_error.map ~f:(fun completed -> completed.Latest_result.Completed.value)
-  in
-  let stop_ids =
-    Map.keys upcoming_arrivals_by_stop_id
-    @ List.concat_map all_alerts ~f:(fun alert ->
-      List.map alert.affected_stop_ids ~f:station_id_of_stop_id)
-    |> String.Set.of_list
-  in
-  stop_ids
-  |> Set.to_list
-  |> List.map ~f:(fun stop_id ->
-    let upcoming_arrivals =
-      Map.find upcoming_arrivals_by_stop_id stop_id |> Option.value ~default:[]
-    in
-    let route_ids =
-      upcoming_arrivals
-      |> List.map ~f:(fun arrival -> arrival.route_id)
-      |> String.Set.of_list
-    in
-    let alerts =
-      List.filter all_alerts ~f:(fun alert ->
-        List.exists alert.affected_stop_ids ~f:(fun affected_stop_id ->
-          String.equal (station_id_of_stop_id affected_stop_id) stop_id)
-        || List.exists alert.affected_route_ids ~f:(Set.mem route_ids)
-        || (List.is_empty alert.affected_stop_ids
-            && List.is_empty alert.affected_route_ids))
-    in
-    stop_id, { Stop_status.upcoming_arrivals; alerts })
-  |> String.Map.of_alist_or_error
+  return
+    (let%bind.Or_error completed_arrivals =
+       upcoming_arrival_results
+       |> List.map ~f:Latest_result.latest_success
+       |> Or_error.combine_errors
+     and all_alerts =
+       all_alerts_result
+       |> Latest_result.latest_success
+       |> Or_error.map ~f:(fun completed -> completed.Latest_result.Completed.value)
+     in
+     let upcoming_arrivals_by_stop_id =
+       completed_arrivals
+       |> List.concat_map ~f:(fun completed ->
+         Map.to_alist completed.Latest_result.Completed.value)
+       |> String.Map.of_alist_multi
+       |> Map.map ~f:(fun arrivals ->
+         arrivals
+         |> List.concat
+         |> List.sort ~compare:(fun left right ->
+           Time_ns.compare left.Arrival.arrives_at right.arrives_at))
+     in
+     let stop_ids =
+       Map.keys upcoming_arrivals_by_stop_id
+       @ List.concat_map all_alerts ~f:(fun alert ->
+         List.map alert.affected_stop_ids ~f:station_id_of_stop_id)
+       |> String.Set.of_list
+     in
+     stop_ids
+     |> Set.to_list
+     |> List.map ~f:(fun stop_id ->
+       let upcoming_arrivals =
+         Map.find upcoming_arrivals_by_stop_id stop_id |> Option.value ~default:[]
+       in
+       let route_ids =
+         upcoming_arrivals
+         |> List.map ~f:(fun arrival -> arrival.route_id)
+         |> String.Set.of_list
+       in
+       let alerts =
+         List.filter all_alerts ~f:(fun alert ->
+           List.exists alert.affected_stop_ids ~f:(fun affected_stop_id ->
+             String.equal (station_id_of_stop_id affected_stop_id) stop_id)
+           || List.exists alert.affected_route_ids ~f:(Set.mem route_ids)
+           || (List.is_empty alert.affected_stop_ids
+               && List.is_empty alert.affected_route_ids))
+       in
+       stop_id, { Stop_status.upcoming_arrivals; alerts })
+     |> String.Map.of_alist_or_error)
 ;;

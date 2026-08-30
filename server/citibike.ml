@@ -22,18 +22,17 @@ module Station = struct
 end
 
 let join station_information station_statuses =
-  let open Or_error.Let_syntax in
-  let%bind status_by_station_id =
+  let%bind.Or_error status_by_station_id =
     station_statuses
     |> List.map ~f:(fun (status : Gbfs.Station_status.t) -> status.station_id, status)
     |> String.Map.of_alist_or_error
   in
-  let%bind stations =
+  let%bind.Or_error stations =
     station_information
     |> List.filter_map ~f:(fun (information : Gbfs.Station_information.t) ->
       Map.find status_by_station_id information.station_id
       |> Option.map ~f:(fun status ->
-        let%map last_reported_ns =
+        let%map.Or_error last_reported_ns =
           Or_error.try_with (fun () ->
             Int63.Overflow_exn.(
               Int63.of_int status.last_reported * Int63.of_int 1_000_000_000))
@@ -68,7 +67,7 @@ let fetch () =
   let%bind.Deferred.Or_error information_feed =
     Gbfs.fetch gbfs Gbfs.Feed.station_information
   and status_feed = Gbfs.fetch gbfs Gbfs.Feed.station_status in
-  join information_feed.data.stations status_feed.data.stations |> Deferred.return
+  join information_feed.data.stations status_feed.data.stations |> return
 ;;
 
 let query cache =

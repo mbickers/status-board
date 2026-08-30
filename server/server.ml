@@ -8,9 +8,9 @@ let run ~cache_path ~port =
       ~autoreload_script:(Autoreload_on_restart.script autoreload)
       ~cache:(Cache.create ~path:cache_path)
       ~renderers:(String.Map.of_alist_exn [ "home", Home.render ])
-    |> Deferred.return
+    |> return
   in
-  let%bind.Deferred _server =
+  let%bind _server =
     Cohttp_async.Server.create_expert
       ~on_handler_error:`Raise
       (Tcp.Where_to_listen.of_port port)
@@ -31,15 +31,14 @@ let run ~cache_path ~port =
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
          | _ ->
-           let%map.Deferred response =
+           let%bind response =
              Cohttp_async.Server.respond_string ~status:`Not_found "Not found"
            in
-           `Response response)
+           return (`Response response))
   in
   Preview.renderer_names preview_handler
   |> List.iter ~f:(fun name ->
-    [%log.global.info
-      "Preview available"
-        ([%string "http://127.0.0.1:%{port#Int}/preview/%{name}"] : string)]);
+    let url = [%string "http://127.0.0.1:%{port#Int}/preview/%{name}"] in
+    [%log.global.info "Preview available" (url : string)]);
   Deferred.never ()
 ;;

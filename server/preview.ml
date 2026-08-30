@@ -11,11 +11,10 @@ type t =
   }
 
 let create ~autoreload_script ~cache ~renderers =
-  let open Or_error.Let_syntax in
-  let%bind contents =
+  let%bind.Or_error contents =
     Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
   in
-  let%map template = Or_error.try_with (fun () -> Mustache.of_string contents) in
+  let%map.Or_error template = Or_error.try_with (fun () -> Mustache.of_string contents) in
   { autoreload_script; cache; renderers; template }
 ;;
 
@@ -42,8 +41,8 @@ let page_html t screen_render =
 ;;
 
 let response_action response =
-  let%map response = response in
-  `Response response
+  let%bind response = response in
+  return (`Response response)
 ;;
 
 let respond t ~name =

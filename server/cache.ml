@@ -29,8 +29,7 @@ let read t (type value) (module M : Sexpable with type t = value) ~key =
        return None
      | Ok contents ->
        let parsed =
-         let open Or_error.Let_syntax in
-         let%bind sexp = Or_error.try_with (fun () -> Sexp.of_string contents) in
+         let%bind.Or_error sexp = Or_error.try_with (fun () -> Sexp.of_string contents) in
          Or_error.try_with (fun () -> Latest_result.t_of_sexp M.t_of_sexp sexp)
        in
        (match parsed with
@@ -51,16 +50,18 @@ let write t (type value) (module M : Sexpable with type t = value) ~key value =
       "Failed to create cache directory" (t.path : string) (error : Error.t)];
     return ()
   | Ok () ->
-    let%map written =
+    let%bind written =
       Monitor.try_with_or_error (fun () ->
         Writer.with_file path ~f:(fun writer ->
           Writer.write writer contents;
           return ()))
     in
-    (match written with
-     | Ok () -> ()
-     | Error error ->
-       [%log.global.error "Failed to write cache file" (path : string) (error : Error.t)])
+    return
+      (match written with
+       | Ok () -> ()
+       | Error error ->
+         [%log.global.error
+           "Failed to write cache file" (path : string) (error : Error.t)])
 ;;
 
 let last_good =
@@ -80,6 +81,6 @@ let get t m ~max_age ~fetch ~key =
       | Error error -> Error { error; last_good = last_good previous }
     in
     let result = { Latest_result.Completed.value; at = Time_ns.now () } in
-    let%map () = write t m ~key result in
-    result
+    let%bind () = write t m ~key result in
+    return result
 ;;

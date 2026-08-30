@@ -87,14 +87,15 @@ module Station_status_feed = struct
 end
 
 let decode decoder contents =
-  let open Or_error.Let_syntax in
-  let%bind json = Or_error.try_with (fun () -> Yojson.Safe.from_string contents) in
+  let%bind.Or_error json =
+    Or_error.try_with (fun () -> Yojson.Safe.from_string contents)
+  in
   Or_error.try_with (fun () -> decoder json)
 ;;
 
 let fetch_url url decoder =
   let%bind.Deferred.Or_error uri =
-    Or_error.try_with (fun () -> Uri.of_string url) |> Deferred.return
+    Or_error.try_with (fun () -> Uri.of_string url) |> return
   in
   let%bind.Deferred.Or_error response, body =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
@@ -104,7 +105,7 @@ let fetch_url url decoder =
   in
   let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
   if Cohttp.Code.is_success status_code
-  then decode decoder contents |> Deferred.return
+  then decode decoder contents |> return
   else
     Deferred.Or_error.errorf
       "GBFS request to %s failed with HTTP %d: %s"
@@ -134,13 +135,11 @@ end
 
 let discover url =
   let%bind.Deferred.Or_error discovery = fetch_url url Discovery.t_of_yojson in
-  let%map.Deferred.Or_error feed_urls =
-    discovery.data.en.feeds
-    |> List.map ~f:(fun feed -> feed.name, feed.url)
-    |> String.Map.of_alist_or_error
-    |> Deferred.return
-  in
-  { Discovered_endpoints.feed_urls }
+  return
+    (discovery.data.en.feeds
+     |> List.map ~f:(fun feed -> feed.name, feed.url)
+     |> String.Map.of_alist_or_error
+     |> Or_error.map ~f:(fun feed_urls -> { Discovered_endpoints.feed_urls }))
 ;;
 
 let fetch discovered_endpoints (feed : _ Feed.t) =
