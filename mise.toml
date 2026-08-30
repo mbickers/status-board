@@ -58,7 +58,7 @@ run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main
 
 [tasks."dev:render_service"]
 depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -host 127.0.0.1 -port 8090"
+run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -data-service-host-and-port 127.0.0.1:8090"
 
 [tasks."dev:test"]
 depends = ["dev:prepare"]

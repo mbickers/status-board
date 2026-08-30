@@ -3,10 +3,10 @@ open! Async
 
 let station_ids = [ "66dc8768-0aca-11e7-82f6-3863bb44ef7c" ]
 
-let rec connect ~host ~port =
+let rec connect data_service_host_and_port =
   let open Deferred.Let_syntax in
   let where_to_connect =
-    Host_and_port.create ~host ~port |> Tcp.Where_to_connect.of_host_and_port
+    Tcp.Where_to_connect.of_host_and_port data_service_host_and_port
   in
   let%bind result = Rpc.Connection.client where_to_connect in
   match result with
@@ -14,7 +14,7 @@ let rec connect ~host ~port =
   | Error error ->
     eprintf "Waiting for data_service: %s\n%!" (Exn.to_string error);
     let%bind () = Clock_ns.after (Time_ns.Span.of_sec 1.) in
-    connect ~host ~port
+    connect data_service_host_and_port
 ;;
 
 let print_station (station : Data_service_rpc.Station.t) =
@@ -56,9 +56,9 @@ let print_stations stations ~station_ids =
     | None -> eprintf "Citi Bike station was not found: %s\n%!" station_id)
 ;;
 
-let run ~host ~port =
+let run ~data_service_host_and_port =
   let open Deferred.Let_syntax in
-  let%bind connection = connect ~host ~port in
+  let%bind connection = connect data_service_host_and_port in
   let query = { Data_service_rpc.Get_data.Query.citibike_station_ids = station_ids } in
   match%bind Rpc.Rpc.dispatch Data_service_rpc.Get_data.rpc connection query with
   | Error error ->
