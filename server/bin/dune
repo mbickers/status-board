@@ -1,5 +1,5 @@
 (executable
  (name main)
- (libraries core async render_service)
+ (libraries core async server)
  (preprocess
   (pps ppx_jane)))

@@ -1,16 +1,36 @@
 open! Core
 open! Async
 
+module Station = struct
+  type t =
+    { station_id : string
+    ; name : string
+    ; latitude : float
+    ; longitude : float
+    ; capacity : int
+    ; bikes_available : int
+    ; ebikes_available : int
+    ; bikes_disabled : int
+    ; docks_available : int
+    ; docks_disabled : int
+    ; is_installed : bool
+    ; is_renting : bool
+    ; is_returning : bool
+    ; last_reported : Time_ns.Alternate_sexp.t
+    }
+  [@@deriving sexp]
+end
+
 let join station_information station_statuses =
   let open Or_error.Let_syntax in
   let%bind status_by_station_id =
     station_statuses
-    |> List.map ~f:(fun (status : Gbfs.station_status) -> status.station_id, status)
+    |> List.map ~f:(fun (status : Gbfs.Station_status.t) -> status.station_id, status)
     |> String.Map.of_alist_or_error
   in
   let%bind stations =
     station_information
-    |> List.filter_map ~f:(fun (information : Gbfs.station_information) ->
+    |> List.filter_map ~f:(fun (information : Gbfs.Station_information.t) ->
       Map.find status_by_station_id information.station_id
       |> Option.map ~f:(fun status ->
         let%map last_reported_ns =
@@ -19,7 +39,7 @@ let join station_information station_statuses =
               Int63.of_int status.last_reported * Int63.of_int 1_000_000_000))
         in
         let station =
-          { Data_service_rpc.Station.station_id = information.station_id
+          { Station.station_id = information.station_id
           ; name = information.name
           ; latitude = information.lat
           ; longitude = information.lon
@@ -41,10 +61,21 @@ let join station_information station_statuses =
   String.Map.of_alist_or_error stations
 ;;
 
-let fetch_snapshot () =
+let fetch () =
   let open Deferred.Or_error.Let_syntax in
   let%bind gbfs = Gbfs.discover "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json" in
   let%bind information_feed = Gbfs.fetch gbfs Gbfs.Feed.station_information
   and status_feed = Gbfs.fetch gbfs Gbfs.Feed.station_status in
   join information_feed.data.stations status_feed.data.stations |> Deferred.return
+;;
+
+let query cache =
+  Cache.get
+    cache
+    (module struct
+      type t = Station.t String.Map.t [@@deriving sexp]
+    end)
+    ~max_age:(Time_ns.Span.of_sec 30.)
+    ~fetch
+    ~key:"citibike"
 ;;

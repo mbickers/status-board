@@ -1,0 +1,13 @@
+(library
+ (name server)
+ (libraries
+  core
+  async
+  cohttp-async
+  mustache
+  uri
+  yojson
+  mta_protobuf
+  ocaml-protoc-plugin)
+ (preprocess
+  (pps ppx_jane ppx_yojson_conv)))

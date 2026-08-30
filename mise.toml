@@ -19,10 +19,10 @@ run = "opam install . --deps-only --locked --yes && touch _opam/.deps_installed"
 
 [tasks.schemas]
 hide = true
-sources = ["data_service/proto/schemas.lock"]
+sources = ["server/mta_protobuf/schemas.lock"]
 outputs = [
-  "data_service/proto/com/google/transit/realtime/gtfs-realtime.proto",
-  "data_service/proto/com/google/transit/realtime/gtfs-realtime-NYCT.proto",
+  "server/mta_protobuf/com/google/transit/realtime/gtfs-realtime.proto",
+  "server/mta_protobuf/com/google/transit/realtime/gtfs-realtime-NYCT.proto",
 ]
 run = '''
 while read -r sha256 url output; do
@@ -30,7 +30,7 @@ while read -r sha256 url output; do
   curl --fail --location --output "$output.tmp" "$url"
   echo "$sha256  $output.tmp" | shasum --algorithm 256 --check
   mv "$output.tmp" "$output"
-done < data_service/proto/schemas.lock
+done < server/mta_protobuf/schemas.lock
 '''
 
 [tasks.lock]
@@ -38,44 +38,40 @@ run = "opam lock ."
 
 [tasks.format]
 depends = ["deps"]
-run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.mli' \) -exec opam exec -- ocamlformat --inplace {} +'''
+run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --inplace {} +'''
 
 [tasks.pre-commit]
 depends = ["deps"]
-run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.mli' \) -exec opam exec -- ocamlformat --check {} +'''
+run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --check {} +'''
 
 [tasks.build]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe"
+run = "opam exec -- dune build server/bin/main.exe"
 
 [tasks."build:watch"]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe"
+run = "opam exec -- dune build --watch server/bin/main.exe"
 
 [tasks.test]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest"
+run = "opam exec -- dune build server/bin/main.exe @runtest"
 
 [tasks."test:watch"]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe @runtest"
+run = "opam exec -- dune build --watch server/bin/main.exe @runtest"
 
 [tasks.dev]
-depends = ["dev:data_service", "dev:render_service", "dev:test"]
-
-[tasks."dev:data_service"]
-depends = ["dev:prepare"]
-run = "_build/default/data_service/bin/main.exe -port 8090"
+depends = ["dev:server", "dev:test"]
 
 [tasks."dev:prepare"]
 depends = ["deps", "schemas"]
-sources = ["data_service/**/*.ml", "data_service/**/*.proto", "data_service/**/dune", "data_service/proto/schemas.lock", "render_service/**/*.ml", "render_service/**/*.html", "render_service/**/dune", "dune-project"]
-outputs = ["_build/default/data_service/bin/main.exe", "_build/default/render_service/bin/main.exe", "_build/render_tests_passed"]
-run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest && touch _build/render_tests_passed"
+sources = ["server/**/*.ml", "server/**/*.mli", "server/**/*.proto", "server/**/*.html", "server/**/dune", "server/mta_protobuf/schemas.lock", "dune-project"]
+outputs = ["_build/default/server/bin/main.exe", "_build/server_tests_passed"]
+run = "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
 
-[tasks."dev:render_service"]
+[tasks."dev:server"]
 depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -data-service-host-and-port 127.0.0.1:8090 -preview-port 8080 -preview-template render_service/preview.html"
+run = "opam exec -- watchexec --restart --watch _build/server_tests_passed -- _build/default/server/bin/main.exe -cache-path _cache -port 8080"
 
 [tasks."dev:test"]
 depends = ["dev:prepare"]
@@ -83,9 +79,8 @@ run = '''
 opam exec -- watchexec \
   --restart \
   --postpone \
-  --watch data_service \
-  --watch render_service \
+  --watch server \
   --watch dune-project \
   --watch status_board.opam \
-  -- "opam exec -- dune build render_service/bin/main.exe @runtest && touch _build/render_tests_passed"
+  -- "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
 '''

@@ -1,5 +1,0 @@
-(library
- (name render_service)
- (libraries core async cohttp-async mustache uri data_service_rpc)
- (preprocess
-  (pps ppx_jane)))

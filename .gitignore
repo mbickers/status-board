@@ -1,5 +1,6 @@
 _build/
-data_service/proto/gtfs_realtime.ml
-data_service/proto/nyct_subway.ml
+_cache/
+server/mta_protobuf/gtfs_realtime.ml
+server/mta_protobuf/nyct_subway.ml
 _opam/
-/data_service/proto/com/
+/server/mta_protobuf/com/

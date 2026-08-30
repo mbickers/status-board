@@ -8,8 +8,8 @@ The E1001's full refresh takes about two to five seconds and visibly flashes the
 
 Four-gray output requires a full refresh in TRMNL firmware and Seeed's current driver. This is not necessarily a physical limitation of the panel, but experimenting would require custom firmware.
 
-# Backend services
+# Backend server
 
-Use separate `data_service` from `render_service`: `data_service` connects to external APIs and caches state, while `render_service` should be able to restart quickly (and without spamming external APIs) while iterating on display design.
+Use one server for fetching data and rendering displays. Each data source stores its latest result in a disposable disk cache with its own expiration time, so that we can restart server during development without worrying about spamming external API endpoints.
 
 We are using OCaml for the backend because I wanted a functional language that I already know and it has mature protobuf support, which the MTA GTFS-Realtime feeds require.
