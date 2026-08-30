@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preview</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    .display { border: 1px solid #888; padding: 1rem; white-space: pre-wrap; }
+    dt { font-weight: 600; margin-top: 1rem; }
+    dd { margin-left: 0; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="display">{{text}}</div>
+  <dl>
+    <dt>Time until refresh</dt><dd>{{refresh_seconds}} seconds</dd>
+    <dt>Display size</dt><dd>{{display_width_cm}} cm × {{display_height_cm}} cm</dd>
+    <dt>Debug info</dt><dd><pre>{{debug_info}}</pre></dd>
+  </dl>
+  <script>
+    setTimeout(() => window.location.reload(), {{refresh_milliseconds}});
+    {{{autoreload_script}}}
+  </script>
+</body>
+</html>

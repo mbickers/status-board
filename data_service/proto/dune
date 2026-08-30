@@ -1,0 +1,36 @@
+(library
+ (name mta_protobuf)
+ (modules gtfs_realtime nyct_subway)
+ (libraries ocaml-protoc-plugin))
+
+(rule
+ (target gtfs_realtime.proto)
+ (deps
+  (:schema com/google/transit/realtime/gtfs-realtime.proto))
+ (action
+  (copy %{schema} %{target})))
+
+(rule
+ (target nyct_subway.proto)
+ (deps
+  (:schema com/google/transit/realtime/gtfs-realtime-NYCT.proto))
+ (action
+  (with-stdout-to
+   %{target}
+   (run
+    sed
+    "s|com/google/transit/realtime/gtfs-realtime.proto|gtfs_realtime.proto|"
+    %{schema}))))
+
+(rule
+ (targets gtfs_realtime.ml nyct_subway.ml)
+ (mode promote)
+ (deps gtfs_realtime.proto nyct_subway.proto)
+ (action
+  (run
+   protoc
+   -I
+   .
+   "--ocaml_opt=int32_as_int=false;int64_as_int=false"
+   --ocaml_out=.
+   %{deps})))

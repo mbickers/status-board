@@ -8,6 +8,14 @@
 (library
  (name data_service)
  (modules (:standard \ data_service_rpc latest_result))
- (libraries core async cohttp-async uri yojson data_service_rpc)
+ (libraries
+  core
+  async
+  cohttp-async
+  uri
+  yojson
+  data_service_rpc
+  mta_protobuf
+  ocaml-protoc-plugin)
  (preprocess
   (pps ppx_jane ppx_yojson_conv)))

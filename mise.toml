@@ -3,6 +3,7 @@ task.source_freshness_hash_contents = true
 
 [tools]
 opam = "2.1.5"
+protoc = "36.0"
 watchexec = "2.5.1"
 
 [tasks.bootstrap]
@@ -16,6 +17,22 @@ sources = ["*.opam", "*.opam.locked"]
 outputs = ["_opam/.deps_installed"]
 run = "opam install . --deps-only --locked --yes && touch _opam/.deps_installed"
 
+[tasks.schemas]
+hide = true
+sources = ["data_service/proto/schemas.lock"]
+outputs = [
+  "data_service/proto/com/google/transit/realtime/gtfs-realtime.proto",
+  "data_service/proto/com/google/transit/realtime/gtfs-realtime-NYCT.proto",
+]
+run = '''
+while read -r sha256 url output; do
+  mkdir -p "$(dirname "$output")"
+  curl --fail --location --output "$output.tmp" "$url"
+  echo "$sha256  $output.tmp" | shasum --algorithm 256 --check
+  mv "$output.tmp" "$output"
+done < data_service/proto/schemas.lock
+'''
+
 [tasks.lock]
 run = "opam lock ."
 
@@ -28,19 +45,19 @@ depends = ["deps"]
 run = '''find data_service render_service -type f \( -name '*.ml' -o -name '*.mli' \) -exec opam exec -- ocamlformat --check {} +'''
 
 [tasks.build]
-depends = ["deps"]
+depends = ["deps", "schemas"]
 run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe"
 
 [tasks."build:watch"]
-depends = ["deps"]
+depends = ["deps", "schemas"]
 run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe"
 
 [tasks.test]
-depends = ["deps"]
+depends = ["deps", "schemas"]
 run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest"
 
 [tasks."test:watch"]
-depends = ["deps"]
+depends = ["deps", "schemas"]
 run = "opam exec -- dune build --watch data_service/bin/main.exe render_service/bin/main.exe @runtest"
 
 [tasks.dev]
@@ -51,14 +68,14 @@ depends = ["dev:prepare"]
 run = "_build/default/data_service/bin/main.exe -port 8090"
 
 [tasks."dev:prepare"]
-depends = ["deps"]
-sources = ["data_service/**/*.ml", "data_service/**/dune", "render_service/**/*.ml", "render_service/**/dune", "dune-project"]
+depends = ["deps", "schemas"]
+sources = ["data_service/**/*.ml", "data_service/**/*.proto", "data_service/**/dune", "data_service/proto/schemas.lock", "render_service/**/*.ml", "render_service/**/*.html", "render_service/**/dune", "dune-project"]
 outputs = ["_build/default/data_service/bin/main.exe", "_build/default/render_service/bin/main.exe", "_build/render_tests_passed"]
 run = "opam exec -- dune build data_service/bin/main.exe render_service/bin/main.exe @runtest && touch _build/render_tests_passed"
 
 [tasks."dev:render_service"]
 depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -data-service-host-and-port 127.0.0.1:8090"
+run = "opam exec -- watchexec --restart --watch _build/render_tests_passed -- opam exec -- dune exec render_service/bin/main.exe -- -data-service-host-and-port 127.0.0.1:8090 -preview-port 8080 -preview-template render_service/preview.html"
 
 [tasks."dev:test"]
 depends = ["dev:prepare"]

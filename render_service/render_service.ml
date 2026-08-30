@@ -1,8 +1,6 @@
 open! Core
 open! Async
 
-let station_ids = [ "66dc8768-0aca-11e7-82f6-3863bb44ef7c" ]
-
 let rec connect data_service_host_and_port =
   let open Deferred.Let_syntax in
   let where_to_connect =
@@ -17,66 +15,94 @@ let rec connect data_service_host_and_port =
     connect data_service_host_and_port
 ;;
 
-let print_station (station : Data_service_rpc.Station.t) =
-  printf
-    "%s\n\
-     Station ID: %s\n\
-     Location: %.6f, %.6f\n\
-     Capacity: %d\n\
-     Bikes available: %d\n\
-     E-bikes available: %d\n\
-     Bikes disabled: %d\n\
-     Docks available: %d\n\
-     Docks disabled: %d\n\
-     Installed: %b\n\
-     Renting: %b\n\
-     Returning: %b\n\
-     Last reported: %s\n\
-     %!"
-    station.name
-    station.station_id
-    station.latitude
-    station.longitude
-    station.capacity
-    station.bikes_available
-    station.ebikes_available
-    station.bikes_disabled
-    station.docks_available
-    station.docks_disabled
-    station.is_installed
-    station.is_renting
-    station.is_returning
-    (Time_ns.to_string_utc station.last_reported)
+let load_preview_template path =
+  let open Or_error.Let_syntax in
+  let%bind contents = Or_error.try_with (fun () -> In_channel.read_all path) in
+  Or_error.try_with (fun () -> Mustache.of_string contents)
 ;;
 
-let print_stations stations ~station_ids =
-  List.iter station_ids ~f:(fun station_id ->
-    match Map.find stations station_id with
-    | Some station -> print_station station
-    | None -> eprintf "Citi Bike station was not found: %s\n%!" station_id)
+let render_preview template render ~autoreload_script =
+  let refresh_seconds = Time_ns.Span.to_sec render.Render.time_until_refresh in
+  let template_data =
+    `O
+      [ "text", `String render.text
+      ; "refresh_seconds", `String (Float.to_string_hum ~decimals:3 refresh_seconds)
+      ; ( "refresh_milliseconds"
+        , `String
+            (Float.to_string_hum ~decimals:0 (Float.max 0. refresh_seconds *. 1_000.)) )
+      ; "display_width_cm", `String (Float.to_string_hum render.display_size.width_cm)
+      ; "display_height_cm", `String (Float.to_string_hum render.display_size.height_cm)
+      ; "debug_info", `String render.debug_info
+      ; "autoreload_script", `String autoreload_script
+      ]
+  in
+  Or_error.try_with (fun () -> Mustache.render template template_data)
 ;;
 
-let run ~data_service_host_and_port =
+let respond response =
   let open Deferred.Let_syntax in
-  let%bind connection = connect data_service_host_and_port in
-  let query = { Data_service_rpc.Get_data.Query.citibike_station_ids = station_ids } in
-  match%bind Rpc.Rpc.dispatch Data_service_rpc.Get_data.rpc connection query with
-  | Error error ->
-    eprintf "Citi Bike RPC failed: %s\n%!" (Error.to_string_hum error);
-    Shutdown.exit 1
-  | Ok response ->
-    (match response.stations.value with
-     | Data_service_rpc.Latest_result.Success stations ->
-       print_stations stations ~station_ids;
-       Deferred.never ()
-     | Data_service_rpc.Latest_result.Error { error; last_good = None } ->
-       eprintf "Citi Bike fetch failed: %s\n%!" (Error.to_string_hum error);
-       Shutdown.exit 1
-     | Data_service_rpc.Latest_result.Error { error; last_good = Some last_good } ->
-       eprintf
-         "Citi Bike refresh failed; using data fetched at %s: %s\n%!"
-         (Time_ns.to_string_utc last_good.at)
-         (Error.to_string_hum error);
-       print_stations last_good.value ~station_ids;
-       Deferred.never ())
+  let%map response = response in
+  `Response response
+;;
+
+let handle_preview_request ~get_data ~renderers ~template ~autoreload request =
+  let path = request |> Cohttp.Request.uri |> Uri.path in
+  match String.chop_prefix path ~prefix:"/preview/" with
+  | Some name ->
+    (match Map.find renderers name with
+     | Some render ->
+       let open Deferred.Let_syntax in
+       let%bind rendered = render ~get_data in
+       (match
+          render_preview
+            template
+            rendered
+            ~autoreload_script:(Autoreload_on_restart.script autoreload)
+        with
+        | Ok html ->
+          Cohttp_async.Server.respond_string
+            ~headers:
+              (Cohttp.Header.of_list
+                 [ "content-type", "text/html; charset=utf-8"
+                 ; "cache-control", "no-store"
+                 ])
+            html
+          |> respond
+        | Error error ->
+          Cohttp_async.Server.respond_string
+            ~status:`Internal_server_error
+            (Error.to_string_hum error)
+          |> respond)
+     | None ->
+       Cohttp_async.Server.respond_string
+         ~status:`Not_found
+         [%string "No renderer named %{name}"]
+       |> respond)
+  | None -> Cohttp_async.Server.respond_string ~status:`Not_found "Not found" |> respond
+;;
+
+let run ~data_service_host_and_port ~preview_port ~preview_template =
+  match load_preview_template preview_template with
+  | Error error -> return (Error error)
+  | Ok template ->
+    let open Deferred.Let_syntax in
+    let%bind connection = connect data_service_host_and_port in
+    let get_data query =
+      Rpc.Rpc.dispatch Data_service_rpc.Get_data.rpc connection query
+    in
+    let renderers = String.Map.singleton "home" Home.render in
+    let autoreload = Autoreload_on_restart.create () in
+    let%bind _server =
+      Cohttp_async.Server.create_expert
+        ~on_handler_error:`Raise
+        (Tcp.Where_to_listen.of_port preview_port)
+        (fun ~body:_ _ request ->
+           match Autoreload_on_restart.handle_request autoreload request with
+           | Some response -> response
+           | None ->
+             handle_preview_request ~get_data ~renderers ~template ~autoreload request)
+    in
+    Map.iter_keys renderers ~f:(fun name ->
+      printf "http://127.0.0.1:%d/preview/%s\n%!" preview_port name);
+    Deferred.never ()
 ;;

@@ -1,3 +1,5 @@
 _build/
+data_service/proto/gtfs_realtime.ml
+data_service/proto/nyct_subway.ml
 _opam/
-
+/data_service/proto/com/
