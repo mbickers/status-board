@@ -9,7 +9,8 @@ val create
   -> cache:Cache.t
   -> image_publisher:Image_publisher.t
   -> renderers:renderer String.Map.t
-  -> t Or_error.t
+  -> template_path:string
+  -> t Deferred.Or_error.t
 
 val respond : t -> name:string -> Cohttp_async.Server.response_action Deferred.t
 val renderer_names : t -> string list

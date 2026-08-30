@@ -40,7 +40,11 @@ module Stop_status : sig
     }
 end
 
-val query
-  :  Cache.t
-  -> which_feeds:Realtime_feed.t list
-  -> Stop_status.t String.Map.t Deferred.Or_error.t
+module Status : sig
+  type t =
+    { stop_status_by_stop_id : Stop_status.t String.Map.t
+    ; systemwide_alerts : Alert.t list
+    }
+end
+
+val query : Cache.t -> which_feeds:Realtime_feed.t list -> Status.t Deferred.Or_error.t

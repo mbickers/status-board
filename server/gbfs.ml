@@ -94,24 +94,8 @@ let decode decoder contents =
 ;;
 
 let fetch_url url decoder =
-  let%bind.Deferred.Or_error uri =
-    Or_error.try_with (fun () -> Uri.of_string url) |> return
-  in
-  let%bind.Deferred.Or_error response, body =
-    Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
-  in
-  let%bind.Deferred.Or_error contents =
-    Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
-  in
-  let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
-  if Cohttp.Code.is_success status_code
-  then decode decoder contents |> return
-  else
-    Deferred.Or_error.errorf
-      "GBFS request to %s failed with HTTP %d: %s"
-      url
-      status_code
-      contents
+  let%bind.Deferred.Or_error contents = Http.get_body url in
+  decode decoder contents |> return
 ;;
 
 module Feed = struct

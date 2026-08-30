@@ -1,8 +1,10 @@
 open! Core
 open! Async
 
-let run ~cache_path ~port =
-  let autoreload = Autoreload_on_restart.create ~monitor_path:"/wait-for-restart" in
+let run ~cache_path ~port ~preview_template_path =
+  let autoreload =
+    Autoreload_on_restart.create ~monitor_path_segment:"wait-for-restart"
+  in
   let image_publisher = Image_publisher.create () in
   let%bind.Deferred.Or_error preview_handler =
     Preview.create
@@ -10,7 +12,7 @@ let run ~cache_path ~port =
       ~cache:(Cache.create ~path:cache_path)
       ~image_publisher
       ~renderers:(String.Map.of_alist_exn [ "home", Home.render ])
-    |> return
+      ~template_path:preview_template_path
   in
   let%bind _server =
     Cohttp_async.Server.create_expert
@@ -25,19 +27,14 @@ let run ~cache_path ~port =
              |> String.chop_prefix_if_exists ~prefix:"/"
              |> String.split ~on:'/' )
          with
-         | `GET, [ path ]
+         | `GET, [ segment ]
            when String.equal
-                  path
-                  (Autoreload_on_restart.monitor_path autoreload
-                   |> String.chop_prefix_if_exists ~prefix:"/") ->
+                  segment
+                  (Autoreload_on_restart.monitor_path_segment autoreload) ->
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
          | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
-         | _ ->
-           let%bind response =
-             Cohttp_async.Server.respond_string ~status:`Not_found "Not found"
-           in
-           return (`Response response))
+         | _ -> Http.respond_string ~status:`Not_found "Not found")
   in
   Preview.renderer_names preview_handler
   |> List.iter ~f:(fun name ->
