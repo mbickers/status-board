@@ -8,7 +8,7 @@ module Size = struct
 end
 
 type t =
-  { buffer : Image.image
+  { buffer : Cairo.Surface.t
   ; time_until_refresh : Time_ns.Span.t
   ; display_resolution : Size.t
   ; debug_info : string

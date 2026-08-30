@@ -1,7 +1,7 @@
 open! Core
 open! Async
 
-type renderer = Cache.t -> Screen_render.t Deferred.t
+type renderer = Cache.t -> Screen_render.t Deferred.Or_error.t
 type t
 
 val create

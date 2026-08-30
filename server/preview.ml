@@ -1,7 +1,7 @@
 open! Core
 open! Async
 
-type renderer = Cache.t -> Screen_render.t Deferred.t
+type renderer = Cache.t -> Screen_render.t Deferred.Or_error.t
 
 type t =
   { autoreload_script : string
@@ -49,17 +49,26 @@ let respond t ~name =
   match Map.find t.renderers name with
   | Some renderer ->
     let%bind screen_render = renderer t.cache in
-    let { Image_publisher.Publish_record.image_url } =
-      Image_publisher.publish t.image_publisher ~name ~buffer:screen_render.buffer
-    in
-    (match page_html t ~image_url screen_render with
-     | Ok html ->
-       Cohttp_async.Server.respond_string
-         ~headers:
-           (Cohttp.Header.of_list
-              [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
-         html
-       |> response_action
+    (match screen_render with
+     | Ok screen_render ->
+       let { Image_publisher.Publish_record.image_url } =
+         Image_publisher.publish t.image_publisher ~name ~buffer:screen_render.buffer
+       in
+       (match page_html t ~image_url screen_render with
+        | Ok html ->
+          Cohttp_async.Server.respond_string
+            ~headers:
+              (Cohttp.Header.of_list
+                 [ "content-type", "text/html; charset=utf-8"
+                 ; "cache-control", "no-store"
+                 ])
+            html
+          |> response_action
+        | Error error ->
+          Cohttp_async.Server.respond_string
+            ~status:`Internal_server_error
+            (Error.to_string_hum error)
+          |> response_action)
      | Error error ->
        Cohttp_async.Server.respond_string
          ~status:`Internal_server_error

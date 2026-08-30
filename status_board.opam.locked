@@ -26,15 +26,17 @@ depends: [
   "base_quickcheck" {= "v0.17.0"}
   "bigstringaf" {= "0.10.0"}
   "bin_prot" {= "v0.17.0-1"}
+  "cairo2" {= "0.6.5"}
   "camlp-streams" {= "5.0.1"}
   "capitalization" {= "v0.17.0"}
-  "checkseum" {= "0.5.3"}
   "chrome-trace" {= "3.24.2"}
   "cmdliner" {= "2.1.1"}
   "cohttp" {= "6.2.2"}
   "cohttp-async" {= "6.2.2"}
   "conduit" {= "8.0.0"}
   "conduit-async" {= "8.0.0"}
+  "conf-cairo" {= "1"}
+  "conf-freetype" {= "1"}
   "conf-libffi" {= "2.0.0"}
   "conf-libssl" {= "4"}
   "conf-pkg-config" {= "5"}
@@ -46,7 +48,6 @@ depends: [
   "cstruct" {= "6.2.0"}
   "ctypes" {= "0.24.0"}
   "ctypes-foreign" {= "0.24.0"}
-  "decompress" {= "1.6.0"}
   "domain-name" {= "0.5.0"}
   "dune" {= "3.24.2"}
   "dune-build-info" {= "3.24.2"}
@@ -62,7 +63,6 @@ depends: [
   "fpath" {= "0.7.3"}
   "gel" {= "v0.17.0"}
   "http" {= "6.2.2"}
-  "imagelib" {= "20221222"}
   "int_repr" {= "v0.17.0"}
   "integers" {= "0.8.0"}
   "ipaddr" {= "5.6.2"}
@@ -100,7 +100,6 @@ depends: [
   "ocamlformat-rpc-lib" {= "0.29.0"}
   "ocp-indent" {= "1.9.0"}
   "octavius" {= "1.2.2"}
-  "optint" {= "0.3.0"}
   "ordering" {= "3.20.2"}
   "parsexp" {= "v0.17.0"}
   "pp" {= "2.0.0"}

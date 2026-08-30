@@ -5,7 +5,7 @@ module Publish_record = struct
   type t = { image_url : string }
 end
 
-type t = Image.image String.Table.t
+type t = Cairo.Surface.t String.Table.t
 
 let create () = String.Table.create ()
 
@@ -20,7 +20,9 @@ let respond t ~name =
     let image_png = Buffer.create 48_000 in
     (match
        Or_error.try_with (fun () ->
-         ImagePNG.write_png (ImageUtil.chunk_writer_of_buffer image_png) image)
+         (* Cairo encodes RGB24 surfaces as 8-bit RGB PNGs. This may need to become
+            a 1-bit encoder if the bit depth causes TRMNL to use full refreshes. *)
+         Cairo.PNG.write_to_stream image (Buffer.add_string image_png))
      with
      | Ok () ->
        let%bind response =

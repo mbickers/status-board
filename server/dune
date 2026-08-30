@@ -3,8 +3,8 @@
  (libraries
   core
   async
+  cairo2
   cohttp-async
-  imagelib
   mustache
   uri
   yojson
