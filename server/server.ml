@@ -3,10 +3,12 @@ open! Async
 
 let run ~cache_path ~port =
   let autoreload = Autoreload_on_restart.create ~monitor_path:"/wait-for-restart" in
+  let image_publisher = Image_publisher.create () in
   let%bind.Deferred.Or_error preview_handler =
     Preview.create
       ~autoreload_script:(Autoreload_on_restart.script autoreload)
       ~cache:(Cache.create ~path:cache_path)
+      ~image_publisher
       ~renderers:(String.Map.of_alist_exn [ "home", Home.render ])
     |> return
   in
@@ -30,6 +32,7 @@ let run ~cache_path ~port =
                    |> String.chop_prefix_if_exists ~prefix:"/") ->
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
+         | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
          | _ ->
            let%bind response =
              Cohttp_async.Server.respond_string ~status:`Not_found "Not found"

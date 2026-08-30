@@ -6,17 +6,22 @@
   <title>Preview</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; }
-    .display { border: 1px solid #888; padding: 1rem; white-space: pre-wrap; }
+    .display { border: 1px solid #888; image-rendering: pixelated; }
     dt { font-weight: 600; margin-top: 1rem; }
     dd { margin-left: 0; }
     pre { white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <div class="display">{{text}}</div>
+  <img
+    class="display"
+    src="{{image_url}}"
+    width="{{display_width_px}}"
+    height="{{display_height_px}}"
+    alt="Rendered screen preview">
   <dl>
     <dt>Time until refresh</dt><dd>{{refresh_seconds}} seconds</dd>
-    <dt>Display size</dt><dd>{{display_width_cm}} cm × {{display_height_cm}} cm</dd>
+    <dt>Display resolution</dt><dd>{{display_width_px}} × {{display_height_px}} pixels</dd>
     <dt>Debug info</dt><dd><pre>{{debug_info}}</pre></dd>
   </dl>
   <script>

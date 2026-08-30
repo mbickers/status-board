@@ -4,6 +4,7 @@
   core
   async
   cohttp-async
+  imagelib
   mustache
   uri
   yojson

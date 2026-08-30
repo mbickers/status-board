@@ -7,6 +7,7 @@ type t
 val create
   :  autoreload_script:string
   -> cache:Cache.t
+  -> image_publisher:Image_publisher.t
   -> renderers:renderer String.Map.t
   -> t Or_error.t
 

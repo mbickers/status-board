@@ -1,15 +1,15 @@
 open! Core
 
-module Display_size = struct
+module Size = struct
   type t =
-    { width_cm : float
-    ; height_cm : float
+    { width : int
+    ; height : int
     }
 end
 
 type t =
-  { text : string
+  { buffer : Image.image
   ; time_until_refresh : Time_ns.Span.t
-  ; display_size : Display_size.t
+  ; display_resolution : Size.t
   ; debug_info : string
   }
