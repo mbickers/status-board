@@ -92,7 +92,7 @@ run = "opam exec -- dune build --root . server/bin/main.exe @runtest && touch _b
 
 [tasks."dev:server"]
 depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/server_tests_passed -- _build/default/server/bin/main.exe -cache-path _cache -port 8080 -preview-template-path server/preview.html"
+run = "opam exec -- watchexec --restart --watch _build/server_tests_passed -- _build/default/server/bin/main.exe -cache-path _cache -port 8080"
 
 [tasks."dev:test"]
 depends = ["dev:prepare"]

@@ -11,14 +11,12 @@ type t =
   ; template : Mustache.t
   }
 
-let create ~autoreload_script ~cache ~image_publisher ~renderers ~template_path =
-  let%bind.Deferred.Or_error contents =
-    Deferred.Or_error.try_with (fun () -> Reader.file_contents template_path)
+let create ~autoreload_script ~cache ~image_publisher ~renderers =
+  let%bind.Or_error contents =
+    Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
   in
-  Or_error.try_with (fun () -> Mustache.of_string contents)
-  |> Or_error.map ~f:(fun template ->
-    { autoreload_script; cache; image_publisher; renderers; template })
-  |> return
+  let%map.Or_error template = Or_error.try_with (fun () -> Mustache.of_string contents) in
+  { autoreload_script; cache; image_publisher; renderers; template }
 ;;
 
 let page_html t ~image_url screen_render =
