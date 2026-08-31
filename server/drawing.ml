@@ -2,21 +2,29 @@ open! Core
 
 module Context = struct
   type t =
-    | Image of Image.image
-    | Clipped of
-        { width : int
-        ; height : int
-        ; image : Image.image
-        }
+    { image : Image.image
+    ; offset : int * int
+    ; size : int * int
+    }
+
+  let create image =
+    { image; offset = 0, 0; size = image.Image.width, image.Image.height }
+  ;;
+
+  let crop t ~size ~offset =
+    let x, y = t.offset in
+    let offset_x, offset_y = offset in
+    { t with offset = x + offset_x, y + offset_y; size }
+  ;;
 
   let write t (x, y) color =
-    let width, height, image =
-      match t with
-      | Image image -> image.Image.width, image.height, image
-      | Clipped { width; height; image } ->
-        Int.min width image.width, Int.min height image.height, image
-    in
-    if x >= 0 && y >= 0 && x < width && y < height
+    let x = x + fst t.offset in
+    let y = y + snd t.offset in
+    let width, height = t.size in
+    let image = t.image in
+    let image_width = t.image.width in
+    let image_height = t.image.height in
+    if x >= 0 && y >= 0 && x < width && y < height && x < image_width && y < image_height
     then
       Image.write_grey
         image

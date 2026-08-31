@@ -1,14 +1,10 @@
 open! Core
 
 module Context : sig
-  type t =
-    | Image of Image.image
-    | Clipped of
-        { width : int
-        ; height : int
-        ; image : Image.image
-        }
+  type t
 
+  val create : Image.image -> t
+  val crop : t -> size:int * int -> offset:int * int -> t
   val write : t -> int * int -> [ `b | `w ] -> unit
 end
 

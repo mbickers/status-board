@@ -6,7 +6,7 @@ let draw ~font =
   let w = 800
   and h = 480 in
   let image = Image.create_grey ~max_val:1 w h in
-  let context = Drawing.Context.Clipped { width = w; height = h; image } in
+  let context = Drawing.Context.create image in
   let black = Drawing.Fill.solid `b
   and land_fill = Drawing.Fill.solid `w
   and geo_stroke = Drawing.Stroke.solid `b 8 in
