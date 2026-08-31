@@ -4,3 +4,6 @@ server/mta_protobuf/gtfs_realtime.ml
 server/mta_protobuf/nyct_subway.ml
 _opam
 /server/mta_protobuf/com/
+
+!.vscode/settings.json
+dune-workspace
