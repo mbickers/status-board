@@ -12,4 +12,6 @@ Four-gray output requires a full refresh in TRMNL firmware and Seeed's current d
 
 Use one server for fetching data and rendering displays. Each data source stores its latest result in a disposable disk cache with its own expiration time, so that we can restart server during development without worrying about spamming external API endpoints.
 
+I considered adding a dev subcommand to the server that just outputs the image to filesystem, but it is fun to watch automatic reload in action and directly see debug information.
+
 We are using OCaml for the backend because I wanted a functional language that I already know and it has mature protobuf support, which the MTA GTFS-Realtime feeds require.
