@@ -24,25 +24,28 @@ let text buffer ~font ~origin_x ~baseline_y ~size string =
   done
 ;;
 
-let render cache =
-  let%bind stations = Citibike.query cache in
+let draw ~font =
   let w = 800
   and h = 480 in
-  return
-    (let%bind.Or_error font_contents =
-       Or_error.try_with (fun () -> In_channel.read_all "server/fonts/inter_medium.ttf")
-     in
-     let%map.Or_error font = Font.create font_contents in
-     let buffer = Image.create_grey ~max_val:1 w h in
-     rect buffer ~color:1 (0, 0) (w, h);
-     text buffer ~font ~origin_x:222 ~baseline_y:277 ~size:80. "hello world";
-     { Screen_render.buffer
-     ; time_until_refresh = Time_ns.Span.of_sec 30.
-     ; debug_info =
-         stations
-         |> Latest_result.map ~f:(fun stations ->
-           Map.find stations "66dc8768-0aca-11e7-82f6-3863bb44ef7c")
-         |> Latest_result.sexp_of_t (Option.sexp_of_t Citibike.Station.sexp_of_t)
-         |> Sexp.to_string_hum
-     })
+  let buffer = Image.create_grey ~max_val:1 w h in
+  rect buffer ~color:1 (0, 0) (w, h);
+  text buffer ~font ~origin_x:222 ~baseline_y:277 ~size:80. "hello world";
+  buffer
+;;
+
+let render cache =
+  let%bind citibike_stations = Citibike.query cache in
+  let%map.Deferred.Or_error font =
+    Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
+  in
+  let buffer = draw ~font in
+  { Screen_render.buffer
+  ; time_until_refresh = Time_ns.Span.of_sec 30.
+  ; debug_info =
+      citibike_stations
+      |> Latest_result.map ~f:(fun stations ->
+        Map.find stations "66dc8768-0aca-11e7-82f6-3863bb44ef7c")
+      |> Latest_result.sexp_of_t (Option.sexp_of_t Citibike.Station.sexp_of_t)
+      |> Sexp.to_string_hum
+  }
 ;;
