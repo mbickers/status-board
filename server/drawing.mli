@@ -20,9 +20,11 @@ module Stroke : sig
   type t =
     { fill : Fill.t
     ; width : int
+    ; casing : t option
     }
 
-  val solid : [ `b | `w ] -> int -> t
+  val create : ?casing:t -> Fill.t -> int -> t
+  val solid : ?casing:t -> [ `b | `w ] -> int -> t
   val safe_padding : t -> int
 end
 

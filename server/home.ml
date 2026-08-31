@@ -118,7 +118,7 @@ let draw ~font =
   let north_fade fill =
     fade_to_white ~level:(fun (_, y) -> (y - man_faded_top) * 16 / man_fade_height) fill
   in
-  let manhattan_stroke = { Stroke.fill = north_fade black; width = 8 } in
+  let manhattan_stroke = Stroke.create (north_fade black) 8 in
   let man_w = 250 in
   let man_padding = 10 in
   let man_inset = 50 in
@@ -151,7 +151,7 @@ let draw ~font =
   polygon context ~fill:land_fill brooklyn_polygon;
   rounded_path context ~radius:20 ~stroke:manhattan_stroke manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
-  let subway_stroke fill = { Stroke.fill; width = 8 } in
+  let subway_stroke fill = Stroke.create ~casing:(Stroke.solid `w 12) fill 8 in
   let l_fill = Fill.bayer 9 in
   let l_y = map_top + 30 in
   rounded_path

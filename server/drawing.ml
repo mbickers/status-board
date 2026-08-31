@@ -95,9 +95,11 @@ module Stroke = struct
   type t =
     { fill : Fill.t
     ; width : int
+    ; casing : t option
     }
 
-  let solid color width = { fill = Fill.solid color; width }
+  let create ?casing fill width = { fill; width; casing }
+  let solid ?casing color width = create ?casing (Fill.solid color) width
   let safe_padding t = t.width / 2
 end
 
@@ -176,7 +178,7 @@ let draw_stroke_point context ~stroke (center_x, center_y) =
   done
 ;;
 
-let draw_line context ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
+let draw_line_without_casing context ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
   let steps = Int.max 1 (distance start finish *. 2. |> Float.round_up |> Int.of_float) in
   for step = 0 to steps do
     let progress = Float.of_int step /. Float.of_int steps in
@@ -187,7 +189,13 @@ let draw_line context ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
   done
 ;;
 
-let draw_quadratic_curve context ~stroke (start, control, finish) =
+let rec draw_line context ~stroke start finish =
+  Option.iter stroke.Stroke.casing ~f:(fun casing ->
+    draw_line context ~stroke:casing start finish);
+  draw_line_without_casing context ~stroke start finish
+;;
+
+let draw_quadratic_curve_without_casing context ~stroke (start, control, finish) =
   let steps =
     Int.max
       1
@@ -213,6 +221,12 @@ let draw_quadratic_curve context ~stroke (start, control, finish) =
   done
 ;;
 
+let rec draw_quadratic_curve context ~stroke points =
+  Option.iter stroke.Stroke.casing ~f:(fun casing ->
+    draw_quadratic_curve context ~stroke:casing points);
+  draw_quadratic_curve_without_casing context ~stroke points
+;;
+
 let rounded_corner_tangent_points ~radius ~previous ((vertex_x, vertex_y) as vertex) ~next
   =
   let previous_length = distance vertex previous
@@ -232,7 +246,10 @@ let rounded_corner_tangent_points ~radius ~previous ((vertex_x, vertex_y) as ver
   tangent_point previous previous_length, tangent_point next next_length
 ;;
 
-let rounded_path context ~radius ~stroke points =
+let rec rounded_path context ~radius ~stroke points =
+  Option.iter stroke.Stroke.casing ~f:(fun casing ->
+    rounded_path context ~radius ~stroke:casing points);
+  let stroke = { stroke with casing = None } in
   let point (x, y) = Float.of_int x, Float.of_int y in
   match List.map points ~f:point with
   | [] -> ()
