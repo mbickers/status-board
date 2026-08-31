@@ -1,6 +1,14 @@
 open! Core
 open! Async
 
+module Anchor = struct
+  type t =
+    | Ul of int * int
+    | Ur of int * int
+    | Ll of int * int
+    | Lr of int * int
+end
+
 let status_box context (left, top) (right, bottom) ~f =
   let radius = 10
   and stroke = Drawing.Stroke.solid `b 4 in
@@ -32,6 +40,48 @@ let status_box context (left, top) (right, bottom) ~f =
        context
        ~offset:(left + safe_padding, top + safe_padding)
        ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)))
+;;
+
+let available_bike_status context ~font anchor =
+  let width = 120
+  and height = 65 in
+  let upper_left, lower_right =
+    match anchor with
+    | Anchor.Ul (left, top) -> (left, top), (left + width, top + height)
+    | Ur (right, top) -> (right - width, top), (right, top + height)
+    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
+    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
+  in
+  status_box context upper_left lower_right ~f:(fun context ->
+    Drawing.text
+      context
+      ~font
+      ~fill:(Drawing.Fill.solid `b)
+      ~origin_x:20
+      ~baseline_y:30
+      ~size:30.
+      "bike")
+;;
+
+let parking_status context ~font anchor =
+  let width = 75
+  and height = 55 in
+  let upper_left, lower_right =
+    match anchor with
+    | Anchor.Ul (left, top) -> (left, top), (left + width, top + height)
+    | Ur (right, top) -> (right - width, top), (right, top + height)
+    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
+    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
+  in
+  status_box context upper_left lower_right ~f:(fun context ->
+    Drawing.text
+      context
+      ~font
+      ~fill:(Drawing.Fill.solid `b)
+      ~origin_x:20
+      ~baseline_y:30
+      ~size:30.
+      "park")
 ;;
 
 let draw ~font =
@@ -94,42 +144,68 @@ let draw ~font =
     [ man_padding + 25, l_y; w, l_y ];
   let j_fill = Fill.bayer 1 in
   let j_y = h - 100 in
-  let j_x = man_w - man_inset - 25 in
+  let j_x = man_w - man_inset - 15 in
+  let j_downward_bottom = h - man_padding - 25 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke j_fill)
-    [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
+    [ w, j_y; j_x, j_y; j_x, j_downward_bottom ];
   let m_fill = north_fade (Fill.bayer ~offset:(1, 1) 10) in
   let m_y = j_y - 12 in
   let m_diag = 25 in
   let m_vert_x = man_w - (man_inset * 2) in
+  let m_houston_y = m_y - man_inset - 10 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke m_fill)
     [ w, m_y
     ; man_w - m_diag, m_y
-    ; man_w - m_diag, m_y - man_inset
-    ; m_vert_x, m_y - man_inset
+    ; man_w - m_diag, m_houston_y
+    ; m_vert_x, m_houston_y
     ; m_vert_x, man_faded_top
     ];
   let status_padding = 8 in
-  let status_left = w - 250 - status_padding in
+  let subway_status_left = w - 250 - status_padding in
   let status_right = w - status_padding in
   let jzm_status_y = m_y - 40 in
   status_box
     context
-    (status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
+    (subway_status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
     (status_right, jzm_status_y - status_padding)
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
   status_box
     context
-    (status_left, jzm_status_y)
+    (subway_status_left, jzm_status_y)
     (status_right, h - status_padding)
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "J/Z/M");
+  let bike_status_rx = subway_status_left - status_padding in
+  let bridge_bike_status_ly =
+    m_y - status_padding - Stroke.safe_padding (subway_stroke black)
+  in
+  available_bike_status context ~font (Anchor.Lr (bike_status_rx, bridge_bike_status_ly));
+  let roeb_bike_uy = j_y + Stroke.safe_padding (subway_stroke black) + status_padding in
+  available_bike_status context ~font (Anchor.Ur (bike_status_rx, roeb_bike_uy));
+  parking_status
+    context
+    ~font
+    (Anchor.Ul
+       ( man_padding + Stroke.safe_padding geo_stroke + status_padding
+       , h - man_padding - Stroke.safe_padding geo_stroke - man_inset - 70 ));
+  parking_status
+    context
+    ~font
+    (Anchor.Ur
+       (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
+  parking_status
+    context
+    ~font
+    (Anchor.Lr
+       ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
+       , j_y - (status_padding / 2) ));
   image
 ;;
 
