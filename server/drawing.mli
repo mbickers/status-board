@@ -25,7 +25,36 @@ module Stroke : sig
   val solid : [ `b | `w ] -> int -> t
 end
 
+val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
+val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
+val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
+
+val draw_quadratic_curve
+  :  Context.t
+  -> stroke:Stroke.t
+  -> (float * float) * (float * float) * (float * float)
+  -> unit
+
+val rounded_path : Context.t -> radius:int -> stroke:Stroke.t -> (int * int) list -> unit
+
+val text
+  :  Context.t
+  -> font:Font.t
+  -> fill:Fill.t
+  -> origin_x:int
+  -> baseline_y:int
+  -> size:float
+  -> string
+  -> unit
+
 module O : sig
+  module Context = Context
+  module Fill = Fill
+  module Stroke = Stroke
+
+  val solid : [ `b | `w ] -> Fill.t
+  val bayer : ?offset:int * int -> int -> Fill.t
+  val fade_to_white : Fill.t -> level:(int * int -> int) -> Fill.t
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
   val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
   val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit

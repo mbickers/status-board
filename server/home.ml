@@ -6,21 +6,19 @@ let draw ~font =
   let w = 800
   and h = 480 in
   let image = Image.create_grey ~max_val:1 w h in
-  let context = Drawing.Context.create image in
-  let black = Drawing.Fill.solid `b
-  and land_fill = Drawing.Fill.solid `w
-  and geo_stroke = Drawing.Stroke.solid `b 8 in
+  let context = Context.create image in
+  let black = Fill.solid `b
+  and land_fill = Fill.solid `w
+  and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:land_fill (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
   let map_top = h / 2 in
   let man_fade_height = 20 in
   let man_faded_top = map_top - man_fade_height in
   let north_fade fill =
-    Drawing.Fill.fade_to_white
-      ~level:(fun (_, y) -> (y - man_faded_top) * 16 / man_fade_height)
-      fill
+    fade_to_white ~level:(fun (_, y) -> (y - man_faded_top) * 16 / man_fade_height) fill
   in
-  let manhattan_stroke = { Drawing.Stroke.fill = north_fade black; width = 8 } in
+  let manhattan_stroke = { Stroke.fill = north_fade black; width = 8 } in
   let man_w = 250 in
   let man_padding = 10 in
   let man_inset = 50 in
@@ -53,15 +51,15 @@ let draw ~font =
   polygon context ~fill:land_fill brooklyn_polygon;
   rounded_path context ~radius:20 ~stroke:manhattan_stroke manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
-  let subway_stroke fill = { Drawing.Stroke.fill; width = 8 } in
-  let l_fill = Drawing.Fill.bayer 7 in
+  let subway_stroke fill = { Stroke.fill; width = 8 } in
+  let l_fill = Fill.bayer 7 in
   let l_y = map_top + 30 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke l_fill)
     [ man_padding + 25, l_y; w, l_y ];
-  let j_fill = Drawing.Fill.bayer 15 in
+  let j_fill = Fill.bayer 15 in
   let j_y = h - 100 in
   let j_x = man_w - man_inset - 25 in
   rounded_path
@@ -69,7 +67,7 @@ let draw ~font =
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
-  let m_fill = north_fade (Drawing.Fill.bayer ~offset:(1, 1) 6) in
+  let m_fill = north_fade (Fill.bayer ~offset:(1, 1) 6) in
   let m_y = j_y - 12 in
   let m_diag = 25 in
   let m_vert_x = man_w - (man_inset * 2) in

@@ -241,6 +241,13 @@ let text context ~font ~fill ~origin_x ~baseline_y ~size string =
 ;;
 
 module O = struct
+  module Context = Context
+  module Fill = Fill
+  module Stroke = Stroke
+
+  let solid = Fill.solid
+  let bayer = Fill.bayer
+  let fade_to_white = Fill.fade_to_white
   let rect = rect
   let polygon = polygon
   let draw_line = draw_line
