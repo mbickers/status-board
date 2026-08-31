@@ -6,12 +6,28 @@ module Fill = struct
 
   let solid color _ = color
 
-  let bayer level =
-    let level = Int.max 0 (Int.min 16 level) in
-    let tile =
-      [| [| 0; 8; 2; 10 |]; [| 12; 4; 14; 6 |]; [| 3; 11; 1; 9 |]; [| 15; 7; 13; 5 |] |]
+  let bayer_threshold (x, y) =
+    let at x y =
+      match y % 2, x % 2 with
+      | 0, 0 -> 0
+      | 0, 1 -> 2
+      | 1, 0 -> 3
+      | 1, 1 -> 1
+      | _ -> 0
     in
-    fun (x, y) -> if tile.(y % 4).(x % 4) < level then `b else `w
+    (4 * at x y) + at (x / 2) (y / 2)
+  ;;
+
+  let bayer ?(offset = 0, 0) level =
+    let level = Int.max 0 (Int.min 16 level) in
+    let offset_x, offset_y = offset in
+    fun (x, y) -> if bayer_threshold (x + offset_x, y + offset_y) < level then `b else `w
+  ;;
+
+  let fade_to_white fill ~level point =
+    if bayer_threshold point < Int.max 0 (Int.min 16 (level point))
+    then fill point
+    else `w
   ;;
 end
 
@@ -42,6 +58,48 @@ let rect buffer ~fill (x1, y1) (x2, y2) =
       write buffer (x, y) fill
     done
   done
+;;
+
+let polygon buffer ~fill points =
+  match points with
+  | [] | [ _ ] | [ _; _ ] -> ()
+  | first :: _ ->
+    let rec edges = function
+      | [] -> []
+      | [ last ] -> [ last, first ]
+      | start :: (finish :: _ as remaining) -> (start, finish) :: edges remaining
+    in
+    let min_y, max_y =
+      List.fold
+        points
+        ~init:(Int.max_value, Int.min_value)
+        ~f:(fun (min_y, max_y) (_, y) -> Int.min min_y y, Int.max max_y y)
+    in
+    for y = min_y to max_y - 1 do
+      edges points
+      |> List.filter_map ~f:(fun ((x1, y1), (x2, y2)) ->
+        if (y1 <= y && y < y2) || (y2 <= y && y < y1)
+        then
+          Some
+            (Float.of_int x1
+             +. (Float.of_int (y - y1) *. Float.of_int (x2 - x1) /. Float.of_int (y2 - y1))
+            )
+        else None)
+      |> List.sort ~compare:Float.compare
+      |> fun intersections ->
+      let rec fill_between_intersections = function
+        | left :: right :: remaining ->
+          for
+            x = Int.of_float (Float.round_up left)
+            to Int.of_float (Float.round_up right) - 1
+          do
+            write buffer (x, y) fill
+          done;
+          fill_between_intersections remaining
+        | [] | [ _ ] -> ()
+      in
+      fill_between_intersections intersections
+    done
 ;;
 
 let distance (x1, y1) (x2, y2) =
@@ -164,19 +222,25 @@ let draw ~font =
   let w = 800
   and h = 480 in
   let buffer = Image.create_grey ~max_val:1 w h in
-  let black = Fill.solid `b in
-  let geo_stroke = Stroke.solid `b 8 in
-  rect buffer ~fill:(Fill.solid `w) (0, 0) (w, h);
+  let black = Fill.solid `b
+  and land_fill = Fill.solid `w
+  and geo_stroke = Stroke.solid `b 8 in
+  rect buffer ~fill:land_fill (0, 0) (w, h);
   text buffer ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
   let map_top = h / 2 in
+  let man_fade_height = 20 in
+  let man_faded_top = map_top - man_fade_height in
+  let north_fade fill =
+    Fill.fade_to_white
+      ~level:(fun (_, y) -> (y - man_faded_top) * 16 / man_fade_height)
+      fill
+  in
+  let manhattan_stroke = { Stroke.fill = north_fade black; width = 8 } in
   let man_w = 250 in
   let man_padding = 10 in
   let man_inset = 50 in
-  rounded_path
-    buffer
-    ~radius:20
-    ~stroke:geo_stroke
-    [ man_padding, map_top
+  let manhattan_path =
+    [ man_padding, man_faded_top
     ; man_padding, h - man_padding - man_inset
     ; man_padding + man_inset, h - man_padding
     ; man_w - man_inset, h - man_padding
@@ -184,15 +248,26 @@ let draw ~font =
     ; man_w, map_top + man_inset + 20
     ; man_w - man_inset, map_top + 20
     ; man_w - man_inset, map_top
-    ];
+    ; man_w - man_inset, man_faded_top
+    ]
+  in
   let river_w = 100 in
   let br_start = man_w + river_w in
   let br_foot = 50 in
-  rounded_path
-    buffer
-    ~radius:20
-    ~stroke:geo_stroke
-    [ w, map_top; br_start, map_top; br_start, h - br_foot; br_start - br_foot, h ];
+  let brooklyn_path =
+    [ w, map_top; br_start, map_top; br_start, h - br_foot; br_start - br_foot, h ]
+  in
+  let brooklyn_polygon = brooklyn_path @ [ w, h ] in
+  let water_fill (x, y) =
+    let wave_x = (x + (y / 12 % 2 * 12)) % 24 in
+    let distance_from_center = Int.abs (wave_x - 12) in
+    if y % 12 = 5 - (distance_from_center * distance_from_center / 48) then `b else `w
+  in
+  rect buffer ~fill:water_fill (0, map_top) (w, h);
+  polygon buffer ~fill:land_fill manhattan_path;
+  polygon buffer ~fill:land_fill brooklyn_polygon;
+  rounded_path buffer ~radius:20 ~stroke:manhattan_stroke manhattan_path;
+  rounded_path buffer ~radius:20 ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = { Stroke.fill; width = 8 } in
   let l_fill = Fill.bayer 7 in
   let l_y = map_top + 30 in
@@ -209,7 +284,7 @@ let draw ~font =
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
-  let m_fill = Fill.bayer 4 in
+  let m_fill = north_fade (Fill.bayer ~offset:(1, 1) 6) in
   let m_y = j_y - 12 in
   let m_diag = 25 in
   let m_vert_x = man_w - (man_inset * 2) in
@@ -221,7 +296,7 @@ let draw ~font =
     ; man_w - m_diag, m_y
     ; man_w - m_diag, m_y - man_inset
     ; m_vert_x, m_y - man_inset
-    ; m_vert_x, map_top
+    ; m_vert_x, man_faded_top
     ];
   buffer
 ;;
