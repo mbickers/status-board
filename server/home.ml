@@ -1,6 +1,44 @@
 open! Core
 open! Async
 
+module Context : sig
+  type t =
+    | Image of Image.image
+    | Clipped of
+        { width : int
+        ; height : int
+        ; image : Image.image
+        }
+
+  val write : t -> int * int -> [ `b | `w ] -> unit
+end = struct
+  type t =
+    | Image of Image.image
+    | Clipped of
+        { width : int
+        ; height : int
+        ; image : Image.image
+        }
+
+  let write t (x, y) color =
+    let width, height, image =
+      match t with
+      | Image image -> image.Image.width, image.height, image
+      | Clipped { width; height; image } ->
+        Int.min width image.width, Int.min height image.height, image
+    in
+    if x >= 0 && y >= 0 && x < width && y < height
+    then
+      Image.write_grey
+        image
+        x
+        y
+        (match color with
+         | `b -> 0
+         | `w -> 1)
+  ;;
+end
+
 module Fill = struct
   type t = int * int -> [ `b | `w ]
 
@@ -40,27 +78,15 @@ module Stroke = struct
   let solid color width = { fill = Fill.solid color; width }
 end
 
-let write buffer ((x, y) as point) fill =
-  if x >= 0 && y >= 0 && x < buffer.Image.width && y < buffer.height
-  then
-    Image.write_grey
-      buffer
-      x
-      y
-      (match fill point with
-       | `b -> 0
-       | `w -> 1)
-;;
-
-let rect buffer ~fill (x1, y1) (x2, y2) =
+let rect context ~fill (x1, y1) (x2, y2) =
   for y = y1 to y2 - 1 do
     for x = x1 to x2 - 1 do
-      write buffer (x, y) fill
+      Context.write context (x, y) (fill (x, y))
     done
   done
 ;;
 
-let polygon buffer ~fill points =
+let polygon context ~fill points =
   match points with
   | [] | [ _ ] | [ _; _ ] -> ()
   | first :: _ ->
@@ -93,7 +119,7 @@ let polygon buffer ~fill points =
             x = Int.of_float (Float.round_up left)
             to Int.of_float (Float.round_up right) - 1
           do
-            write buffer (x, y) fill
+            Context.write context (x, y) (fill (x, y))
           done;
           fill_between_intersections remaining
         | [] | [ _ ] -> ()
@@ -106,7 +132,7 @@ let distance (x1, y1) (x2, y2) =
   Float.sqrt (((x2 -. x1) *. (x2 -. x1)) +. ((y2 -. y1) *. (y2 -. y1)))
 ;;
 
-let draw_stroke_point buffer ~stroke (center_x, center_y) =
+let draw_stroke_point context ~stroke (center_x, center_y) =
   let stroke_radius = Float.of_int stroke.Stroke.width /. 2. in
   for
     y = Int.of_float (Float.round_down (center_y -. stroke_radius))
@@ -122,23 +148,23 @@ let draw_stroke_point buffer ~stroke (center_x, center_y) =
         Float.O.(
           (x_distance * x_distance) + (y_distance * y_distance)
           <= stroke_radius * stroke_radius)
-      then write buffer (x, y) stroke.fill
+      then Context.write context (x, y) (stroke.fill (x, y))
     done
   done
 ;;
 
-let draw_line buffer ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
+let draw_line context ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
   let steps = Int.max 1 (distance start finish *. 2. |> Float.round_up |> Int.of_float) in
   for step = 0 to steps do
     let progress = Float.of_int step /. Float.of_int steps in
     draw_stroke_point
-      buffer
+      context
       ~stroke
       (x1 +. ((x2 -. x1) *. progress), y1 +. ((y2 -. y1) *. progress))
   done
 ;;
 
-let draw_quadratic_curve buffer ~stroke (start, control, finish) =
+let draw_quadratic_curve context ~stroke (start, control, finish) =
   let steps =
     Int.max
       1
@@ -153,7 +179,7 @@ let draw_quadratic_curve buffer ~stroke (start, control, finish) =
     let progress = Float.of_int step /. Float.of_int steps in
     let remaining = 1. -. progress in
     draw_stroke_point
-      buffer
+      context
       ~stroke
       ( (remaining *. remaining *. x1)
         +. (2. *. remaining *. progress *. control_x)
@@ -183,37 +209,36 @@ let rounded_corner_tangent_points ~radius ~previous ((vertex_x, vertex_y) as ver
   tangent_point previous previous_length, tangent_point next next_length
 ;;
 
-let rounded_path buffer ~radius ~stroke points =
+let rounded_path context ~radius ~stroke points =
   let point (x, y) = Float.of_int x, Float.of_int y in
   match List.map points ~f:point with
   | [] -> ()
-  | [ point ] -> draw_stroke_point buffer ~stroke point
+  | [ point ] -> draw_stroke_point context ~stroke point
   | first :: points ->
     let rec draw current previous = function
       | [] -> ()
-      | [ last ] -> draw_line buffer ~stroke current last
+      | [ last ] -> draw_line context ~stroke current last
       | vertex :: (next :: _ as remaining) ->
         let curve_start, curve_end =
           rounded_corner_tangent_points ~radius ~previous vertex ~next
         in
-        draw_line buffer ~stroke current curve_start;
-        draw_quadratic_curve buffer ~stroke (curve_start, vertex, curve_end);
+        draw_line context ~stroke current curve_start;
+        draw_quadratic_curve context ~stroke (curve_start, vertex, curve_end);
         draw curve_end vertex remaining
     in
     draw first first points
 ;;
 
-let text buffer ~font ~fill ~origin_x ~baseline_y ~size string =
+let text context ~font ~fill ~origin_x ~baseline_y ~size string =
   let rendered_text = Font.render_text font string ~size in
   for y = 0 to rendered_text.height - 1 do
     for x = 0 to rendered_text.width - 1 do
       if Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
-      then
-        write
-          buffer
-          ( origin_x - rendered_text.origin_x + x
-          , baseline_y - rendered_text.baseline_y + y )
-          fill
+      then (
+        let point =
+          origin_x - rendered_text.origin_x + x, baseline_y - rendered_text.baseline_y + y
+        in
+        Context.write context point (fill point))
     done
   done
 ;;
@@ -221,12 +246,13 @@ let text buffer ~font ~fill ~origin_x ~baseline_y ~size string =
 let draw ~font =
   let w = 800
   and h = 480 in
-  let buffer = Image.create_grey ~max_val:1 w h in
+  let image = Image.create_grey ~max_val:1 w h in
+  let context = Context.Clipped { width = w; height = h; image } in
   let black = Fill.solid `b
   and land_fill = Fill.solid `w
   and geo_stroke = Stroke.solid `b 8 in
-  rect buffer ~fill:land_fill (0, 0) (w, h);
-  text buffer ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
+  rect context ~fill:land_fill (0, 0) (w, h);
+  text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
   let map_top = h / 2 in
   let man_fade_height = 20 in
   let man_faded_top = map_top - man_fade_height in
@@ -263,16 +289,16 @@ let draw ~font =
     let distance_from_center = Int.abs (wave_x - 12) in
     if y % 12 = 5 - (distance_from_center * distance_from_center / 48) then `b else `w
   in
-  rect buffer ~fill:water_fill (0, map_top) (w, h);
-  polygon buffer ~fill:land_fill manhattan_path;
-  polygon buffer ~fill:land_fill brooklyn_polygon;
-  rounded_path buffer ~radius:20 ~stroke:manhattan_stroke manhattan_path;
-  rounded_path buffer ~radius:20 ~stroke:geo_stroke brooklyn_path;
+  rect context ~fill:water_fill (0, map_top) (w, h);
+  polygon context ~fill:land_fill manhattan_path;
+  polygon context ~fill:land_fill brooklyn_polygon;
+  rounded_path context ~radius:20 ~stroke:manhattan_stroke manhattan_path;
+  rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = { Stroke.fill; width = 8 } in
   let l_fill = Fill.bayer 7 in
   let l_y = map_top + 30 in
   rounded_path
-    buffer
+    context
     ~radius:20
     ~stroke:(subway_stroke l_fill)
     [ man_padding + 25, l_y; w, l_y ];
@@ -280,7 +306,7 @@ let draw ~font =
   let j_y = h - 100 in
   let j_x = man_w - man_inset - 25 in
   rounded_path
-    buffer
+    context
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
@@ -289,7 +315,7 @@ let draw ~font =
   let m_diag = 25 in
   let m_vert_x = man_w - (man_inset * 2) in
   rounded_path
-    buffer
+    context
     ~radius:20
     ~stroke:(subway_stroke m_fill)
     [ w, m_y
@@ -298,7 +324,7 @@ let draw ~font =
     ; m_vert_x, m_y - man_inset
     ; m_vert_x, man_faded_top
     ];
-  buffer
+  image
 ;;
 
 let render cache =
@@ -306,8 +332,8 @@ let render cache =
   let%map.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
   in
-  let buffer = draw ~font in
-  { Screen_render.buffer
+  let image = draw ~font in
+  { Screen_render.buffer = image
   ; time_until_refresh = Time_ns.Span.of_sec 30.
   ; debug_info =
       citibike_stations
