@@ -9,7 +9,7 @@ module Anchor = struct
     | Lr of int * int
 end
 
-let status_box context (left, top) (right, bottom) ~f =
+let status_box context (left, top) (right, bottom) ~font ~title ~f =
   let radius = 10
   and stroke = Drawing.Stroke.solid `b 4 in
   let inside ~inset (x, y) =
@@ -39,10 +39,27 @@ let status_box context (left, top) (right, bottom) ~f =
     (Drawing.Context.crop
        context
        ~offset:(left + safe_padding, top + safe_padding)
-       ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)))
+       ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)));
+  let title_size = 17. in
+  let rendered_title = Font.render_text font title ~size:title_size in
+  let title_left = left + radius + 5 in
+  let title_top = top - 3 in
+  Drawing.rect
+    context
+    ~fill:(Drawing.Fill.solid `w)
+    (title_left - 4, title_top - 2)
+    (title_left + rendered_title.width + 4, title_top + rendered_title.height + 2);
+  Drawing.text
+    context
+    ~font
+    ~fill:(Drawing.Fill.solid `b)
+    ~origin_x:(title_left + rendered_title.origin_x)
+    ~baseline_y:(title_top + rendered_title.baseline_y)
+    ~size:title_size
+    title
 ;;
 
-let available_bike_status context ~font anchor =
+let available_bike_status context ~font ~title anchor =
   let width = 120
   and height = 65 in
   let upper_left, lower_right =
@@ -52,7 +69,7 @@ let available_bike_status context ~font anchor =
     | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
     | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
   in
-  status_box context upper_left lower_right ~f:(fun context ->
+  status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -63,7 +80,7 @@ let available_bike_status context ~font anchor =
       "bike")
 ;;
 
-let parking_status context ~font anchor =
+let parking_status context ~font ~title anchor =
   let width = 75
   and height = 55 in
   let upper_left, lower_right =
@@ -73,7 +90,7 @@ let parking_status context ~font anchor =
     | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
     | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
   in
-  status_box context upper_left lower_right ~f:(fun context ->
+  status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -174,38 +191,53 @@ let draw ~font =
     context
     (subway_status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
     (status_right, jzm_status_y - status_padding)
+    ~font
+    ~title:"bedford"
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
   status_box
     context
     (subway_status_left, jzm_status_y)
     (status_right, h - status_padding)
+    ~font
+    ~title:"marcy"
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "J/Z/M");
   let bike_status_rx = subway_status_left - status_padding in
   let bridge_bike_status_ly =
     m_y - status_padding - Stroke.safe_padding (subway_stroke black)
   in
-  available_bike_status context ~font (Anchor.Lr (bike_status_rx, bridge_bike_status_ly));
+  available_bike_status
+    context
+    ~font
+    ~title:"bridge"
+    (Anchor.Lr (bike_status_rx, bridge_bike_status_ly));
   let roeb_bike_uy = j_y + Stroke.safe_padding (subway_stroke black) + status_padding in
-  available_bike_status context ~font (Anchor.Ur (bike_status_rx, roeb_bike_uy));
+  available_bike_status
+    context
+    ~font
+    ~title:"roebling"
+    (Anchor.Ur (bike_status_rx, roeb_bike_uy));
   parking_status
     context
     ~font
+    ~title:"ves"
     (Anchor.Ul
        ( man_padding + Stroke.safe_padding geo_stroke + status_padding
        , h - man_padding - Stroke.safe_padding geo_stroke - man_inset - 70 ));
   parking_status
     context
     ~font
-    (Anchor.Ur
-       (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
+    ~title:"park"
+    (Anchor.Lr
+       ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
+       , j_y - status_padding ));
   parking_status
     context
     ~font
-    (Anchor.Lr
-       ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
-       , j_y - (status_padding / 2) ));
+    ~title:"chur"
+    (Anchor.Ur
+       (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
   image
 ;;
 
