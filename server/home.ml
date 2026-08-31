@@ -7,69 +7,19 @@ module Anchor = struct
     | Ur of int * int
     | Ll of int * int
     | Lr of int * int
-end
 
-let status_box context (left, top) (right, bottom) ~font ~title ~f =
-  let radius = 10
-  and stroke = Drawing.Stroke.solid `b 4 in
-  let inside ~inset (x, y) =
-    let left = left + inset
-    and top = top + inset
-    and right = right - inset
-    and bottom = bottom - inset
-    and radius = radius - inset in
-    let nearest_x = Int.max (left + radius) (Int.min (right - radius - 1) x)
-    and nearest_y = Int.max (top + radius) (Int.min (bottom - radius - 1) y) in
-    let dx = x - nearest_x
-    and dy = y - nearest_y in
-    (dx * dx) + (dy * dy) <= radius * radius
-  in
-  for y = top to bottom - 1 do
-    for x = left to right - 1 do
-      if inside ~inset:0 (x, y)
-      then
-        Drawing.Context.write
-          context
-          (x, y)
-          (if inside ~inset:stroke.width (x, y) then `w else stroke.fill (x, y))
-    done
-  done;
-  let safe_padding = Drawing.Stroke.safe_padding stroke in
-  f
-    (Drawing.Context.crop
-       context
-       ~offset:(left + safe_padding, top + safe_padding)
-       ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)));
-  let title_size = 17. in
-  let rendered_title = Font.render_text font title ~size:title_size in
-  let title_left = left + radius + 5 in
-  let title_top = top - 3 in
-  Drawing.rect
-    context
-    ~fill:(Drawing.Fill.solid `w)
-    (title_left - 4, title_top - 2)
-    (title_left + rendered_title.width + 4, title_top + rendered_title.height + 2);
-  Drawing.text
-    context
-    ~font
-    ~fill:(Drawing.Fill.solid `b)
-    ~origin_x:(title_left + rendered_title.origin_x)
-    ~baseline_y:(title_top + rendered_title.baseline_y)
-    ~size:title_size
-    title
-;;
-
-let available_bike_status context ~font ~title anchor =
-  let width = 120
-  and height = 65 in
-  let upper_left, lower_right =
-    match anchor with
-    | Anchor.Ul (left, top) -> (left, top), (left + width, top + height)
+  let resolve t ~size:(width, height) =
+    match t with
+    | Ul (left, top) -> (left, top), (left + width, top + height)
     | Ur (right, top) -> (right - width, top), (right, top + height)
     | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
     | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
-  in
-  status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+  ;;
+end
+
+let available_bike_status context ~font ~title anchor =
+  let upper_left, lower_right = Anchor.resolve anchor ~size:(120, 65) in
+  Draw.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -81,16 +31,8 @@ let available_bike_status context ~font ~title anchor =
 ;;
 
 let parking_status context ~font ~title anchor =
-  let width = 75
-  and height = 55 in
-  let upper_left, lower_right =
-    match anchor with
-    | Anchor.Ul (left, top) -> (left, top), (left + width, top + height)
-    | Ur (right, top) -> (right - width, top), (right, top + height)
-    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
-    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
-  in
-  status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+  let upper_left, lower_right = Anchor.resolve anchor ~size:(75, 55) in
+  Draw.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -187,7 +129,7 @@ let draw ~font =
   let subway_status_left = w - 250 - status_padding in
   let status_right = w - status_padding in
   let jzm_status_y = m_y - 40 in
-  status_box
+  Draw.status_box
     context
     (subway_status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
     (status_right, jzm_status_y - status_padding)
@@ -195,7 +137,7 @@ let draw ~font =
     ~title:"bedford"
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
-  status_box
+  Draw.status_box
     context
     (subway_status_left, jzm_status_y)
     (status_right, h - status_padding)
