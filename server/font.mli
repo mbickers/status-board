@@ -12,5 +12,5 @@ end
 
 type t
 
-val create : string -> t Or_error.t
+val create : ttf_file:string -> t Or_error.t
 val render_text : t -> string -> size:float -> Rendered_text.t

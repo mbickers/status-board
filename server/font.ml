@@ -15,7 +15,10 @@ type t =
   ; font : Stb_truetype.t
   }
 
-let create contents =
+let create ~ttf_file =
+  let%bind.Or_error contents =
+    Or_error.try_with (fun () -> In_channel.read_all ttf_file)
+  in
   let buffer =
     Bigarray.Array1.create
       Bigarray.int8_unsigned
