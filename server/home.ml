@@ -41,7 +41,7 @@ let draw ~font =
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
   let black = Fill.solid `b
-  and land_fill = Fill.solid `w
+  and land_fill = Fill.bayer ~size:16 254
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
@@ -85,14 +85,14 @@ let draw ~font =
   rounded_path context ~radius:20 ~stroke:manhattan_stroke manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = { Stroke.fill; width = 8 } in
-  let l_fill = Fill.bayer 7 in
+  let l_fill = Fill.bayer 9 in
   let l_y = map_top + 30 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke l_fill)
     [ man_padding + 25, l_y; w, l_y ];
-  let j_fill = Fill.bayer 15 in
+  let j_fill = Fill.bayer 1 in
   let j_y = h - 100 in
   let j_x = man_w - man_inset - 25 in
   rounded_path
@@ -100,7 +100,7 @@ let draw ~font =
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
-  let m_fill = north_fade (Fill.bayer ~offset:(1, 1) 6) in
+  let m_fill = north_fade (Fill.bayer ~offset:(1, 1) 10) in
   let m_y = j_y - 12 in
   let m_diag = 25 in
   let m_vert_x = man_w - (man_inset * 2) in

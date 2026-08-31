@@ -12,7 +12,7 @@ module Fill : sig
   type t = int * int -> [ `b | `w ]
 
   val solid : [ `b | `w ] -> t
-  val bayer : ?offset:int * int -> int -> t
+  val bayer : ?size:int -> ?offset:int * int -> int -> t
   val fade_to_white : t -> level:(int * int -> int) -> t
 end
 
@@ -54,7 +54,7 @@ module O : sig
   module Stroke = Stroke
 
   val solid : [ `b | `w ] -> Fill.t
-  val bayer : ?offset:int * int -> int -> Fill.t
+  val bayer : ?size:int -> ?offset:int * int -> int -> Fill.t
   val fade_to_white : Fill.t -> level:(int * int -> int) -> Fill.t
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
   val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit

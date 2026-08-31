@@ -43,28 +43,51 @@ module Fill = struct
 
   let solid color _ = color
 
-  let bayer_threshold (x, y) =
-    let at x y =
-      match y % 2, x % 2 with
-      | 0, 0 -> 0
-      | 0, 1 -> 2
-      | 1, 0 -> 3
-      | 1, 1 -> 1
-      | _ -> 0
-    in
-    (4 * at x y) + at (x / 2) (y / 2)
+  let rec bayer_matrix = function
+    | 1 -> [| [| 0 |] |]
+    | size ->
+      let half_size = size / 2 in
+      let smaller = bayer_matrix half_size in
+      Array.init size ~f:(fun y ->
+        Array.init size ~f:(fun x ->
+          let quadrant_offset =
+            match y / half_size, x / half_size with
+            | 0, 0 -> 0
+            | 0, 1 -> 2
+            | 1, 0 -> 3
+            | 1, 1 -> 1
+            | _ -> 0
+          in
+          (4 * smaller.(y % half_size).(x % half_size)) + quadrant_offset))
   ;;
 
-  let bayer ?(offset = 0, 0) level =
-    let level = Int.max 0 (Int.min 16 level) in
+  let tile_index ~size coordinate =
+    let index = coordinate % size in
+    if index < 0 then index + size else index
+  ;;
+
+  let bayer ?(size = 4) ?(offset = 0, 0) level =
+    if size <= 0 || size land (size - 1) <> 0
+    then invalid_arg "Bayer matrix size must be a positive power of two";
+    let matrix = bayer_matrix size in
+    let level = Int.max 0 (Int.min (size * size) level) in
     let offset_x, offset_y = offset in
-    fun (x, y) -> if bayer_threshold (x + offset_x, y + offset_y) < level then `b else `w
+    fun (x, y) ->
+      if
+        matrix.(tile_index ~size (y + offset_y)).(tile_index ~size (x + offset_x))
+        >= level
+      then `b
+      else `w
   ;;
 
-  let fade_to_white fill ~level point =
-    if bayer_threshold point < Int.max 0 (Int.min 16 (level point))
-    then fill point
-    else `w
+  let fade_to_white fill ~level =
+    let matrix = bayer_matrix 4 in
+    fun ((x, y) as point) ->
+      if
+        matrix.(tile_index ~size:4 y).(tile_index ~size:4 x)
+        < Int.max 0 (Int.min 16 (level point))
+      then fill point
+      else `w
   ;;
 end
 
