@@ -10,13 +10,14 @@ watchexec = "2.5.1"
 sources = ["mise.toml"]
 outputs = ["_opam/.opam-switch/switch-config"]
 run = '''
-if [ ! -e _opam ]; then
-  main_worktree=$(cd "$(git rev-parse --git-common-dir)/.." && pwd)
-  if [ "$main_worktree" = "$PWD" ]; then
-    opam switch create . 5.1.1 --no-install --yes --repositories=default=https://opam.ocaml.org
-  else
-    opam switch link "$main_worktree" .
-  fi
+main_worktree=$(cd "$(git rev-parse --git-common-dir)/.." && pwd)
+if [ "$main_worktree" = "$PWD" ]; then
+  test -e _opam || opam switch create . 5.1.1 --no-install --yes --repositories=default=https://opam.ocaml.org
+else
+  test -e _opam || opam switch link "$main_worktree" .
+  # dune roots at the outermost dune-workspace, so without one here it would
+  # build and analyze the main checkout instead of this worktree
+  echo "(lang dune 3.12)" > dune-workspace
 fi
 '''
 
@@ -67,19 +68,19 @@ run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server
 
 [tasks.build]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --root . server/bin/main.exe"
+run = "opam exec -- dune build server/bin/main.exe"
 
 [tasks."build:watch"]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --root . --watch server/bin/main.exe"
+run = "opam exec -- dune build --watch server/bin/main.exe"
 
 [tasks.test]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --root . server/bin/main.exe @runtest"
+run = "opam exec -- dune build server/bin/main.exe @runtest"
 
 [tasks."test:watch"]
 depends = ["deps", "schemas"]
-run = "opam exec -- dune build --root . --watch server/bin/main.exe @runtest"
+run = "opam exec -- dune build --watch server/bin/main.exe @runtest"
 
 [tasks.dev]
 depends = ["dev:server", "dev:test"]
@@ -88,7 +89,7 @@ depends = ["dev:server", "dev:test"]
 depends = ["deps", "schemas"]
 sources = ["server/**/*.ml", "server/**/*.mli", "server/**/*.proto", "server/**/*.html", "server/**/dune", "server/mta_protobuf/schemas.lock", "dune-project"]
 outputs = ["_build/default/server/bin/main.exe", "_build/server_tests_passed"]
-run = "opam exec -- dune build --root . server/bin/main.exe @runtest && touch _build/server_tests_passed"
+run = "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
 
 [tasks."dev:server"]
 depends = ["dev:prepare"]
@@ -103,5 +104,5 @@ opam exec -- watchexec \
   --watch server \
   --watch dune-project \
   --watch status_board.opam \
-  -- "opam exec -- dune build --root . server/bin/main.exe @runtest && touch _build/server_tests_passed"
+  -- "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
 '''
