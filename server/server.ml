@@ -2,7 +2,7 @@ open! Core
 open! Async
 
 let run ~cache_path ~port =
-  let autoreload = Autoreload_on_restart.create ~monitor_path:"/wait-for-restart" in
+  let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
   let image_publisher = Image_publisher.create () in
   let%bind.Deferred.Or_error preview_handler =
     Preview.create
@@ -25,19 +25,15 @@ let run ~cache_path ~port =
              |> String.chop_prefix_if_exists ~prefix:"/"
              |> String.split ~on:'/' )
          with
-         | `GET, [ path ]
-           when String.equal
+         | `GET, path
+           when List.equal
+                  String.equal
                   path
-                  (Autoreload_on_restart.monitor_path autoreload
-                   |> String.chop_prefix_if_exists ~prefix:"/") ->
+                  (Autoreload_on_restart.monitor_path autoreload) ->
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
          | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
-         | _ ->
-           let%bind response =
-             Cohttp_async.Server.respond_string ~status:`Not_found "Not found"
-           in
-           return (`Response response))
+         | _ -> Http.respond_string ~status:`Not_found "Not found")
   in
   Preview.renderer_names preview_handler
   |> List.iter ~f:(fun name ->

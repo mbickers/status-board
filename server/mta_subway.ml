@@ -12,7 +12,7 @@ module Realtime_feed = struct
     | Line_L
     | Lines_N_Q_R_W
     | Staten_island_railway
-  [@@deriving compare, enumerate, sexp]
+  [@@deriving compare, sexp]
 end
 
 module Arrival = struct
@@ -45,6 +45,14 @@ module Stop_status = struct
   [@@deriving sexp]
 end
 
+module Status = struct
+  type t =
+    { stop_status_by_stop_id : Stop_status.t String.Map.t
+    ; systemwide_alerts : Alert.t list
+    }
+  [@@deriving sexp]
+end
+
 let realtime_feed_url realtime_feed =
   match realtime_feed with
   | Realtime_feed.Lines_1_2_3_4_5_6_7 ->
@@ -63,32 +71,16 @@ let realtime_feed_url realtime_feed =
 ;;
 
 let fetch_message url =
-  let%bind.Deferred.Or_error uri =
-    Or_error.try_with (fun () -> Uri.of_string url) |> return
-  in
-  let%bind.Deferred.Or_error response, body =
-    Deferred.Or_error.try_with (fun () -> Cohttp_async.Client.get uri)
-  in
-  let%bind.Deferred.Or_error contents =
-    Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
-  in
-  let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
-  if Cohttp.Code.is_success status_code
-  then
-    Gtfs.FeedMessage.from_proto (Ocaml_protoc_plugin.Reader.create contents)
-    |> Core.Result.map_error ~f:(fun error ->
-      Error.of_string (Ocaml_protoc_plugin.Result.show_error error))
-    |> return
-  else Deferred.Or_error.errorf "MTA request to %s failed with HTTP %d" url status_code
+  let%bind.Deferred.Or_error contents = Http.get_body url in
+  Gtfs.FeedMessage.from_proto (Ocaml_protoc_plugin.Reader.create contents)
+  |> Core.Result.map_error ~f:(fun error ->
+    Error.of_string (Ocaml_protoc_plugin.Result.show_error error))
+  |> return
 ;;
 
 let time_ns_of_seconds_since_epoch seconds =
-  match Int63.of_int64 seconds with
-  | None -> Or_error.errorf "Timestamp is outside the Time_ns range: %Ld" seconds
-  | Some seconds ->
-    Or_error.try_with (fun () ->
-      Int63.Overflow_exn.(seconds * Int63.of_int 1_000_000_000))
-    |> Or_error.map ~f:Time_ns.of_int63_ns_since_epoch
+  Or_error.try_with (fun () ->
+    Time_ns.of_span_since_epoch (Time_ns.Span.of_int_sec (Int64.to_int_exn seconds)))
 ;;
 
 let station_id_of_stop_id stop_id =
@@ -238,9 +230,13 @@ let query cache ~which_feeds =
          |> List.sort ~compare:(fun left right ->
            Time_ns.compare left.Arrival.arrives_at right.arrives_at))
      in
+     let systemwide_alerts, targeted_alerts =
+       List.partition_tf all_alerts ~f:(fun alert ->
+         List.is_empty alert.affected_stop_ids && List.is_empty alert.affected_route_ids)
+     in
      let stop_ids =
        Map.keys upcoming_arrivals_by_stop_id
-       @ List.concat_map all_alerts ~f:(fun alert ->
+       @ List.concat_map targeted_alerts ~f:(fun alert ->
          List.map alert.affected_stop_ids ~f:station_id_of_stop_id)
        |> String.Set.of_list
      in
@@ -256,13 +252,13 @@ let query cache ~which_feeds =
          |> String.Set.of_list
        in
        let alerts =
-         List.filter all_alerts ~f:(fun alert ->
+         List.filter targeted_alerts ~f:(fun alert ->
            List.exists alert.affected_stop_ids ~f:(fun affected_stop_id ->
              String.equal (station_id_of_stop_id affected_stop_id) stop_id)
-           || List.exists alert.affected_route_ids ~f:(Set.mem route_ids)
-           || (List.is_empty alert.affected_stop_ids
-               && List.is_empty alert.affected_route_ids))
+           || List.exists alert.affected_route_ids ~f:(Set.mem route_ids))
        in
        stop_id, { Stop_status.upcoming_arrivals; alerts })
-     |> String.Map.of_alist_or_error)
+     |> String.Map.of_alist_or_error
+     |> Or_error.map ~f:(fun stop_status_by_stop_id ->
+       { Status.stop_status_by_stop_id; systemwide_alerts }))
 ;;

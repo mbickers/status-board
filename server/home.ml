@@ -38,7 +38,6 @@ let render cache =
      text buffer ~font ~origin_x:222 ~baseline_y:277 ~size:80. "hello world";
      { Screen_render.buffer
      ; time_until_refresh = Time_ns.Span.of_sec 30.
-     ; display_resolution = { Screen_render.Size.width = w; height = h }
      ; debug_info =
          stations
          |> Latest_result.map ~f:(fun stations ->

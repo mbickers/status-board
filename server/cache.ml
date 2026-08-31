@@ -1,19 +1,12 @@
 open! Core
 open! Async
 
-module type Sexpable = sig
-  type t
-
-  val sexp_of_t : t -> Sexp.t
-  val t_of_sexp : Sexp.t -> t
-end
-
 type t = { path : string }
 
 let create ~path = { path }
 let path_for_key t ~key = Filename.concat t.path [%string "%{key}.sexp"]
 
-let read t (type value) (module M : Sexpable with type t = value) ~key =
+let read t (type value) (module M : Sexpable.S with type t = value) ~key =
   let path = path_for_key t ~key in
   let%bind exists = Sys.file_exists path in
   match exists with
@@ -40,7 +33,7 @@ let read t (type value) (module M : Sexpable with type t = value) ~key =
           return None))
 ;;
 
-let write t (type value) (module M : Sexpable with type t = value) ~key value =
+let write t (type value) (module M : Sexpable.S with type t = value) ~key value =
   let path = path_for_key t ~key in
   let contents = Latest_result.sexp_of_t M.sexp_of_t value |> Sexp.to_string_hum in
   let%bind directory = Monitor.try_with_or_error (fun () -> Unix.mkdir ~p:() t.path) in
@@ -64,10 +57,6 @@ let write t (type value) (module M : Sexpable with type t = value) ~key value =
            "Failed to write cache file" (path : string) (error : Error.t)])
 ;;
 
-let last_good =
-  Option.bind ~f:(fun result -> Latest_result.latest_success result |> Result.ok)
-;;
-
 let get t m ~max_age ~fetch ~key =
   let%bind previous = read t m ~key in
   let now = Time_ns.now () in
@@ -78,7 +67,13 @@ let get t m ~max_age ~fetch ~key =
     let value =
       match fetched with
       | Ok value -> Latest_result.Outcome.Success value
-      | Error error -> Error { error; last_good = last_good previous }
+      | Error error ->
+        Error
+          { error
+          ; last_good =
+              Option.bind previous ~f:(fun result ->
+                Latest_result.latest_success result |> Result.ok)
+          }
     in
     let result = { Latest_result.Completed.value; at = Time_ns.now () } in
     let%bind () = write t m ~key result in
