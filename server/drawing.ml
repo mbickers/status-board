@@ -18,21 +18,23 @@ module Context = struct
   ;;
 
   let write t (x, y) color =
-    let x = x + fst t.offset in
-    let y = y + snd t.offset in
     let width, height = t.size in
-    let image = t.image in
-    let image_width = t.image.width in
-    let image_height = t.image.height in
-    if x >= 0 && y >= 0 && x < width && y < height && x < image_width && y < image_height
-    then
-      Image.write_grey
-        image
-        x
-        y
-        (match color with
-         | `b -> 0
-         | `w -> 1)
+    if x >= 0 && y >= 0 && x < width && y < height
+    then (
+      let x = x + fst t.offset in
+      let y = y + snd t.offset in
+      let image = t.image in
+      let image_width = image.width in
+      let image_height = image.height in
+      if x >= 0 && y >= 0 && x < image_width && y < image_height
+      then
+        Image.write_grey
+          image
+          x
+          y
+          (match color with
+           | `b -> 0
+           | `w -> 1))
   ;;
 end
 

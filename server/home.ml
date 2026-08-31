@@ -1,6 +1,40 @@
 open! Core
 open! Async
 
+let status_box context ~position:(x1, y1) ~size:(width, height) ~f =
+  let x2 = x1 + width
+  and y2 = y1 + height in
+  let radius = 10
+  and stroke_width = 4 in
+  let inside ~inset (x, y) =
+    let left = x1 + inset
+    and top = y1 + inset
+    and right = x2 - inset
+    and bottom = y2 - inset
+    and radius = radius - inset in
+    let nearest_x = Int.max (left + radius) (Int.min (right - radius - 1) x)
+    and nearest_y = Int.max (top + radius) (Int.min (bottom - radius - 1) y) in
+    let dx = x - nearest_x
+    and dy = y - nearest_y in
+    (dx * dx) + (dy * dy) <= radius * radius
+  in
+  for y = y1 to y2 - 1 do
+    for x = x1 to x2 - 1 do
+      if inside ~inset:0 (x, y)
+      then
+        Drawing.Context.write
+          context
+          (x, y)
+          (if inside ~inset:stroke_width (x, y) then `w else `b)
+    done
+  done;
+  f
+    (Drawing.Context.crop
+       context
+       ~offset:(x1 + stroke_width, y1 + stroke_width)
+       ~size:(x2 - x1 - (2 * stroke_width), y2 - y1 - (2 * stroke_width)))
+;;
+
 let draw ~font =
   let open Drawing.O in
   let w = 800
@@ -10,7 +44,7 @@ let draw ~font =
   let black = Fill.solid `b
   and land_fill = Fill.solid `w
   and geo_stroke = Stroke.solid `b 8 in
-  rect context ~fill:land_fill (0, 0) (w, h);
+  rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
   let map_top = h / 2 in
   let man_fade_height = 20 in
@@ -47,7 +81,7 @@ let draw ~font =
     if y % 12 = 5 - (distance_from_center * distance_from_center / 48) then `b else `w
   in
   rect context ~fill:water_fill (0, map_top) (w, h);
-  polygon context ~fill:land_fill manhattan_path;
+  polygon context ~fill:(north_fade land_fill) manhattan_path;
   polygon context ~fill:land_fill brooklyn_polygon;
   rounded_path context ~radius:20 ~stroke:manhattan_stroke manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
@@ -81,6 +115,23 @@ let draw ~font =
     ; m_vert_x, m_y - man_inset
     ; m_vert_x, man_faded_top
     ];
+  let jzm_status_w = 250 in
+  let status_padding = 10 in
+  let jzm_status_x = w - jzm_status_w - status_padding in
+  let jzm_status_y = m_y - 40 in
+  let jzm_status_h = h - jzm_status_y - status_padding in
+  status_box
+    context
+    ~position:(jzm_status_x, jzm_status_y)
+    ~size:(jzm_status_w, jzm_status_h)
+    ~f:(fun context ->
+      text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "J/Z/M");
+  status_box
+    context
+    ~position:(jzm_status_x, map_top + status_padding)
+    ~size:(jzm_status_w, jzm_status_y - map_top - status_padding - (status_padding / 2))
+    ~f:(fun context ->
+      text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
   image
 ;;
 
