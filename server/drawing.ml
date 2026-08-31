@@ -75,6 +75,7 @@ module Stroke = struct
     }
 
   let solid color width = { fill = Fill.solid color; width }
+  let safe_padding t = t.width / 2
 end
 
 let rect context ~fill (x1, y1) (x2, y2) =

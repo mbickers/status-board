@@ -23,6 +23,7 @@ module Stroke : sig
     }
 
   val solid : [ `b | `w ] -> int -> t
+  val safe_padding : t -> int
 end
 
 val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit

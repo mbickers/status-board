@@ -1,16 +1,14 @@
 open! Core
 open! Async
 
-let status_box context ~position:(x1, y1) ~size:(width, height) ~f =
-  let x2 = x1 + width
-  and y2 = y1 + height in
+let status_box context (left, top) (right, bottom) ~f =
   let radius = 10
-  and stroke_width = 4 in
+  and stroke = Drawing.Stroke.solid `b 4 in
   let inside ~inset (x, y) =
-    let left = x1 + inset
-    and top = y1 + inset
-    and right = x2 - inset
-    and bottom = y2 - inset
+    let left = left + inset
+    and top = top + inset
+    and right = right - inset
+    and bottom = bottom - inset
     and radius = radius - inset in
     let nearest_x = Int.max (left + radius) (Int.min (right - radius - 1) x)
     and nearest_y = Int.max (top + radius) (Int.min (bottom - radius - 1) y) in
@@ -18,21 +16,22 @@ let status_box context ~position:(x1, y1) ~size:(width, height) ~f =
     and dy = y - nearest_y in
     (dx * dx) + (dy * dy) <= radius * radius
   in
-  for y = y1 to y2 - 1 do
-    for x = x1 to x2 - 1 do
+  for y = top to bottom - 1 do
+    for x = left to right - 1 do
       if inside ~inset:0 (x, y)
       then
         Drawing.Context.write
           context
           (x, y)
-          (if inside ~inset:stroke_width (x, y) then `w else `b)
+          (if inside ~inset:stroke.width (x, y) then `w else stroke.fill (x, y))
     done
   done;
+  let safe_padding = Drawing.Stroke.safe_padding stroke in
   f
     (Drawing.Context.crop
        context
-       ~offset:(x1 + stroke_width, y1 + stroke_width)
-       ~size:(x2 - x1 - (2 * stroke_width), y2 - y1 - (2 * stroke_width)))
+       ~offset:(left + safe_padding, top + safe_padding)
+       ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)))
 ;;
 
 let draw ~font =
@@ -115,23 +114,22 @@ let draw ~font =
     ; m_vert_x, m_y - man_inset
     ; m_vert_x, man_faded_top
     ];
-  let jzm_status_w = 250 in
-  let status_padding = 10 in
-  let jzm_status_x = w - jzm_status_w - status_padding in
+  let status_padding = 8 in
+  let status_left = w - 250 - status_padding in
+  let status_right = w - status_padding in
   let jzm_status_y = m_y - 40 in
-  let jzm_status_h = h - jzm_status_y - status_padding in
   status_box
     context
-    ~position:(jzm_status_x, jzm_status_y)
-    ~size:(jzm_status_w, jzm_status_h)
-    ~f:(fun context ->
-      text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "J/Z/M");
-  status_box
-    context
-    ~position:(jzm_status_x, map_top + status_padding)
-    ~size:(jzm_status_w, jzm_status_y - map_top - status_padding - (status_padding / 2))
+    (status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
+    (status_right, jzm_status_y - status_padding)
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
+  status_box
+    context
+    (status_left, jzm_status_y)
+    (status_right, h - status_padding)
+    ~f:(fun context ->
+      text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "J/Z/M");
   image
 ;;
 
