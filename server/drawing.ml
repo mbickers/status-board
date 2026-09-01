@@ -88,11 +88,12 @@ module Fill = struct
   ;;
 
   let fade_to_white fill ~level =
-    let matrix = bayer_matrix 4 in
+    let size = 16 in
+    let matrix = bayer_matrix size in
     fun ((x, y) as point) ->
       if
-        matrix.(tile_index ~size:4 y).(tile_index ~size:4 x)
-        < Int.max 0 (Int.min 16 (level point))
+        matrix.(tile_index ~size y).(tile_index ~size x)
+        < Int.max 0 (Int.min (size * size) (level point))
       then fill point
       else `w
   ;;

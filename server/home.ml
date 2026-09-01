@@ -111,7 +111,7 @@ let draw ~font ~citibike_stations =
   and man_fade_height = 20 in
   let man_faded_top = map_top - man_fade_height in
   let north_fade fill =
-    fade_to_white ~level:(fun (_, y) -> (y - man_faded_top) * 16 / man_fade_height) fill
+    fade_to_white ~level:(fun (_, y) -> (y - man_faded_top) * 256 / man_fade_height) fill
   in
   let man_w = 250
   and man_padding = 10
