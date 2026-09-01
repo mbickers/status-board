@@ -243,6 +243,28 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ~station:barclay_station
     (Anchor.Ur
        (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
+  let updated_text =
+    [%string
+      "last updated %{Time_ns_unix.format now \"%H:%M\" \
+       ~zone:(Time_ns_unix.Zone.find_exn \"America/New_York\")}"]
+  and updated_text_size = 24.
+  and updated_text_padding = 8 in
+  let rendered_updated_text =
+    Font.render_text font updated_text ~size:updated_text_size
+  in
+  text
+    ~halo:(2, Fill.solid `w)
+    context
+    ~font
+    ~fill:black
+    ~origin_x:
+      (w
+       - updated_text_padding
+       - rendered_updated_text.width
+       + rendered_updated_text.origin_x)
+    ~baseline_y:(h - updated_text_padding)
+    ~size:updated_text_size
+    updated_text;
   Ok image
 ;;
 
