@@ -12,8 +12,8 @@ module Context = struct
   ;;
 
   let crop t ~size ~offset =
-    let x, y = t.offset in
-    let offset_x, offset_y = offset in
+    let x, y = t.offset
+    and offset_x, offset_y = offset in
     { t with offset = x + offset_x, y + offset_y; size }
   ;;
 
@@ -23,12 +23,11 @@ module Context = struct
     let width, height = t.size in
     if x >= 0 && y >= 0 && x < width && y < height
     then (
-      let x = x + fst t.offset in
-      let y = y + snd t.offset in
-      let image = t.image in
-      let image_width = image.width in
-      let image_height = image.height in
-      if x >= 0 && y >= 0 && x < image_width && y < image_height
+      let offset_x, offset_y = t.offset
+      and image = t.image in
+      let x = x + offset_x
+      and y = y + offset_y in
+      if x >= 0 && y >= 0 && x < image.width && y < image.height
       then
         Image.write_grey
           image
@@ -74,7 +73,7 @@ module Fill = struct
     if index < 0 then index + size else index
   ;;
 
-  let bayer ?(size = 4) ?(offset = 0, 0) level =
+  let bayer_exn ?(size = 4) ?(offset = 0, 0) level =
     if size <= 0 || size land (size - 1) <> 0
     then invalid_arg "Bayer matrix size must be a positive power of two";
     let matrix = bayer_matrix size in
@@ -96,6 +95,23 @@ module Fill = struct
         < Int.max 0 (Int.min 16 (level point))
       then fill point
       else `w
+  ;;
+
+  let fractional ~frac ~frontier_angle_degrees context =
+    let width, height = Context.size context in
+    if Float.compare frac 0. <= 0
+    then solid `w
+    else if Float.compare frac 1. >= 0
+    then solid `b
+    else (
+      let frontier_slope = Float.tan (frontier_angle_degrees *. Float.pi /. 180.) in
+      fun (x, y) ->
+        let frontier_at_center = Float.of_int width *. frac in
+        let frontier =
+          frontier_at_center
+          +. ((Float.of_int y -. (Float.of_int height /. 2.)) *. frontier_slope)
+        in
+        if Float.compare (Float.of_int x) frontier < 0 then `b else `w)
   ;;
 end
 
@@ -258,8 +274,7 @@ let rec rounded_path context ~radius ~stroke points =
   Option.iter stroke.Stroke.casing ~f:(fun casing ->
     rounded_path context ~radius ~stroke:casing points);
   let stroke = { stroke with casing = None } in
-  let point (x, y) = Float.of_int x, Float.of_int y in
-  match List.map points ~f:point with
+  match List.map points ~f:(fun (x, y) -> Float.of_int x, Float.of_int y) with
   | [] -> ()
   | [ point ] -> draw_stroke_point context ~stroke point
   | first :: points ->
@@ -303,9 +318,21 @@ let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
 ;;
 
-let status_box context (left, top) (right, bottom) ~font ~title ~f =
+let status_box
+      ?(fill = fun _ -> Fill.solid `w)
+      context
+      (left, top)
+      (right, bottom)
+      ~font
+      ~title
+      ~f
+  =
   let radius = 10
   and stroke = Stroke.solid `b 4 in
+  let box_context =
+    Context.crop context ~offset:(left, top) ~size:(right - left, bottom - top)
+  in
+  let fill = fill box_context in
   let inside ~inset (x, y) =
     let left = left + inset
     and top = top + inset
@@ -326,27 +353,23 @@ let status_box context (left, top) (right, bottom) ~font ~title ~f =
       done
     done
   in
-  iter_pixels ~f:(fun point ~is_interior ->
-    Context.write context point (if is_interior then `w else stroke.fill point));
-  let safe_padding = Stroke.safe_padding stroke in
-  f
-    (Context.crop
-       context
-       ~offset:(left + safe_padding, top + safe_padding)
-       ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)));
+  iter_pixels ~f:(fun ((x, y) as point) ~is_interior ->
+    Context.write
+      context
+      point
+      (if is_interior then fill (x - left, y - top) else stroke.fill point));
+  f box_context ~fill;
   iter_pixels ~f:(fun point ~is_interior ->
     if not is_interior then Context.write context point (stroke.fill point));
   let title_size = 17. in
   let rendered_title = Font.render_text font title ~size:title_size in
-  let title_left = left + radius + 5 in
-  let title_top = top - 3 in
   text
     ~halo:(2, Fill.solid `w)
     context
     ~font
     ~fill:(Fill.solid `b)
-    ~origin_x:(title_left + rendered_title.origin_x)
-    ~baseline_y:(title_top + rendered_title.baseline_y)
+    ~origin_x:(left + radius + 5 + rendered_title.origin_x)
+    ~baseline_y:(top - 3 + rendered_title.baseline_y)
     ~size:title_size
     title
 ;;
@@ -358,7 +381,7 @@ module O = struct
 
   let solid = Fill.solid
   let invert = Fill.invert
-  let bayer = Fill.bayer
+  let bayer_exn = Fill.bayer_exn
   let fade_to_white = Fill.fade_to_white
   let rect = rect
   let polygon = polygon

@@ -14,16 +14,13 @@ module Fill : sig
 
   val solid : [ `b | `w ] -> t
   val invert : t -> t
-  val bayer : ?size:int -> ?offset:int * int -> int -> t
+  val bayer_exn : ?size:int -> ?offset:int * int -> int -> t
   val fade_to_white : t -> level:(int * int -> int) -> t
+  val fractional : frac:float -> frontier_angle_degrees:float -> Context.t -> t
 end
 
 module Stroke : sig
-  type t =
-    { fill : Fill.t
-    ; width : int
-    ; casing : t option
-    }
+  type t
 
   val create : ?casing:t -> Fill.t -> int -> t
   val solid : ?casing:t -> [ `b | `w ] -> int -> t
@@ -54,12 +51,13 @@ val text
   -> unit
 
 val status_box
-  :  Context.t
+  :  ?fill:(Context.t -> Fill.t)
+  -> Context.t
   -> int * int
   -> int * int
   -> font:Font.t
   -> title:string
-  -> f:(Context.t -> unit)
+  -> f:(Context.t -> fill:Fill.t -> unit)
   -> unit
 
 module O : sig
@@ -69,7 +67,7 @@ module O : sig
 
   val solid : [ `b | `w ] -> Fill.t
   val invert : Fill.t -> Fill.t
-  val bayer : ?size:int -> ?offset:int * int -> int -> Fill.t
+  val bayer_exn : ?size:int -> ?offset:int * int -> int -> Fill.t
   val fade_to_white : Fill.t -> level:(int * int -> int) -> Fill.t
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
   val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
@@ -100,11 +98,12 @@ module O : sig
     -> unit
 
   val status_box
-    :  Context.t
+    :  ?fill:(Context.t -> Fill.t)
+    -> Context.t
     -> int * int
     -> int * int
     -> font:Font.t
     -> title:string
-    -> f:(Context.t -> unit)
+    -> f:(Context.t -> fill:Fill.t -> unit)
     -> unit
 end
