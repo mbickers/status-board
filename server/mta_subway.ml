@@ -109,12 +109,12 @@ let arrival
   | _ -> Ok None
 ;;
 
-let upcoming_arrivals feed_message =
+let upcoming_arrivals (feed_message : Gtfs.FeedMessage.t) =
   let now = Time_ns.now () in
   let arrivals =
-    feed_message.Gtfs.FeedMessage.entity
+    feed_message.entity
     |> List.concat_map ~f:(fun entity ->
-      match entity.Gtfs.FeedEntity.trip_update with
+      match entity.trip_update with
       | None -> []
       | Some trip_update ->
         List.map trip_update.stop_time_update ~f:(arrival ~now trip_update.trip))
@@ -137,8 +137,8 @@ let fetch_upcoming_arrivals realtime_feed =
   return (upcoming_arrivals feed_message)
 ;;
 
-let translated_text translated_string =
-  let translations = translated_string.Gtfs.TranslatedString.translation in
+let translated_text (translated_string : Gtfs.TranslatedString.t) =
+  let translations = translated_string.translation in
   let preferred =
     List.find translations ~f:(fun translation ->
       Option.exists translation.language ~f:(String.is_prefix ~prefix:"en"))
@@ -217,12 +217,11 @@ let query cache ~which_feeds =
      and all_alerts =
        all_alerts_result
        |> Latest_result.latest_success
-       |> Or_error.map ~f:(fun completed -> completed.Latest_result.Completed.value)
+       |> Or_error.map ~f:(fun completed -> completed.value)
      in
      let upcoming_arrivals_by_stop_id =
        completed_arrivals
-       |> List.concat_map ~f:(fun completed ->
-         Map.to_alist completed.Latest_result.Completed.value)
+       |> List.concat_map ~f:(fun completed -> Map.to_alist completed.value)
        |> String.Map.of_alist_multi
        |> Map.map ~f:(fun arrivals ->
          arrivals

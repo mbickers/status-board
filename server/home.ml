@@ -18,11 +18,9 @@ module Anchor = struct
 end
 
 (* TODO: Check whether the dock is installed and renting or returning before displaying availability. *)
-let available_bike_status context ~font ~title ~station anchor =
+let available_bike_status context ~font ~title ~(station : Citibike.Station.t) anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(120, 65) in
-  let bikes_available =
-    station.Citibike.Station.bikes_available - station.ebikes_available
-  in
+  let bikes_available = station.bikes_available - station.ebikes_available in
   Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
@@ -34,7 +32,7 @@ let available_bike_status context ~font ~title ~station anchor =
       [%string "%{bikes_available#Int}/%{station.ebikes_available#Int}"])
 ;;
 
-let parking_status context ~font ~title ~station anchor =
+let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(75, 55) in
   Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
@@ -44,7 +42,7 @@ let parking_status context ~font ~title ~station anchor =
       ~origin_x:20
       ~baseline_y:30
       ~size:30.
-      (Int.to_string station.Citibike.Station.docks_available))
+      (Int.to_string station.docks_available))
 ;;
 
 let draw ~font ~citibike_stations =
@@ -204,7 +202,7 @@ let render cache =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
   and citibike_stations =
     Latest_result.latest_success citibike_result
-    |> Or_error.map ~f:(fun completed -> completed.Latest_result.Completed.value)
+    |> Or_error.map ~f:(fun completed -> completed.value)
     |> return
   in
   let%map.Deferred.Or_error image = draw ~font ~citibike_stations |> return in
