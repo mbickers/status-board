@@ -35,7 +35,8 @@ let run ~cache_path ~port =
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
          | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
-         | `GET, [ "api"; "display" ] -> Trmnl.respond trmnl ~request
+         | `GET, [ "api"; "setup" ] -> Trmnl.respond_setup trmnl ~request
+         | `GET, [ "api"; "display" ] -> Trmnl.respond_display trmnl ~request
          | _ -> Http.respond_string ~status:`Not_found "Not found")
   in
   Preview.renderer_names preview_handler

@@ -11,7 +11,12 @@ val create
   -> renderer:renderer
   -> t
 
-val respond
+val respond_setup
+  :  t
+  -> request:Cohttp.Request.t
+  -> Cohttp_async.Server.response_action Deferred.t
+
+val respond_display
   :  t
   -> request:Cohttp.Request.t
   -> Cohttp_async.Server.response_action Deferred.t
