@@ -2,7 +2,7 @@
 task.source_freshness_hash_contents = true
 
 [tools]
-opam = "2.1.5"
+opam = "2.5.2"
 protoc = "36.0"
 watchexec = "2.5.1"
 
@@ -36,7 +36,8 @@ then
   echo "  rm _opam && opam switch create . 5.1.1 --no-install" >&2
   exit 1
 fi
-opam install . --deps-only --locked --yes && touch _opam/.deps_installed
+opam install . --deps-only --locked --with-dev-setup --yes \
+  && touch _opam/.deps_installed
 '''
 
 [tasks.schemas]
@@ -69,6 +70,31 @@ run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server
 [tasks.build]
 depends = ["deps", "schemas"]
 run = "opam exec -- dune build server/bin/main.exe"
+
+[tasks."prod-deps"]
+hide = true
+depends = ["bootstrap"]
+sources = ["*.opam", "*.opam.locked"]
+outputs = ["_opam/.prod_deps_installed"]
+run = "opam install . --deps-only --locked --yes && touch _opam/.prod_deps_installed"
+
+[tasks.prod-install]
+depends = ["prod-deps", "schemas"]
+run = '''
+test "$PWD" = "$HOME/status-board" || {
+  echo "prod-install must run from $HOME/status-board" >&2
+  exit 1
+}
+opam exec -- dune build --profile release server/bin/main.exe
+install -D -m 755 _build/default/server/bin/main.exe "$HOME/.local/bin/status-board.new"
+mv "$HOME/.local/bin/status-board.new" "$HOME/.local/bin/status-board"
+install -D -m 644 status-board.service "$HOME/.config/systemd/user/status-board.service"
+install -d "$HOME/.local/state/status-board/cache"
+systemctl --user daemon-reload
+systemctl --user enable status-board.service
+systemctl --user restart status-board.service
+systemctl --user is-active --quiet status-board.service
+'''
 
 [tasks."build:watch"]
 depends = ["deps", "schemas"]
