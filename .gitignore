@@ -3,7 +3,8 @@ _cache/
 server/mta_protobuf/gtfs_realtime.ml
 server/mta_protobuf/nyct_subway.ml
 _opam
-/server/mta_protobuf/com/
+/server/mta_protobuf/gtfs-realtime.proto
+/server/mta_protobuf/gtfs-realtime-NYCT.proto
 
 !.vscode/settings.json
 dune-workspace

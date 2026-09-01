@@ -43,8 +43,8 @@ opam install . --deps-only --locked --yes && touch _opam/.deps_installed
 hide = true
 sources = ["server/mta_protobuf/schemas.lock"]
 outputs = [
-  "server/mta_protobuf/com/google/transit/realtime/gtfs-realtime.proto",
-  "server/mta_protobuf/com/google/transit/realtime/gtfs-realtime-NYCT.proto",
+  "server/mta_protobuf/gtfs-realtime.proto",
+  "server/mta_protobuf/gtfs-realtime-NYCT.proto",
 ]
 run = '''
 while read -r sha256 url output; do

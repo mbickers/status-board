@@ -6,14 +6,14 @@
 (rule
  (target gtfs_realtime.proto)
  (deps
-  (:schema com/google/transit/realtime/gtfs-realtime.proto))
+  (:schema gtfs-realtime.proto))
  (action
   (copy %{schema} %{target})))
 
 (rule
  (target nyct_subway.proto)
  (deps
-  (:schema com/google/transit/realtime/gtfs-realtime-NYCT.proto))
+  (:schema gtfs-realtime-NYCT.proto))
  (action
   (with-stdout-to
    %{target}
