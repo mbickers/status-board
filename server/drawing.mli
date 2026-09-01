@@ -50,6 +50,15 @@ val text
   -> string
   -> unit
 
+val status_box
+  :  Context.t
+  -> int * int
+  -> int * int
+  -> font:Font.t
+  -> title:string
+  -> f:(Context.t -> unit)
+  -> unit
+
 module O : sig
   module Context = Context
   module Fill = Fill
@@ -83,5 +92,14 @@ module O : sig
     -> baseline_y:int
     -> size:float
     -> string
+    -> unit
+
+  val status_box
+    :  Context.t
+    -> int * int
+    -> int * int
+    -> font:Font.t
+    -> title:string
+    -> f:(Context.t -> unit)
     -> unit
 end

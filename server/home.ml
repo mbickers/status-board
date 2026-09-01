@@ -17,9 +17,13 @@ module Anchor = struct
   ;;
 end
 
-let available_bike_status context ~font ~title anchor =
+(* TODO: Check whether the dock is installed and renting or returning before displaying availability. *)
+let available_bike_status context ~font ~title ~station anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(120, 65) in
-  Draw.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+  let bikes_available =
+    station.Citibike.Station.bikes_available - station.ebikes_available
+  in
+  Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -27,12 +31,12 @@ let available_bike_status context ~font ~title anchor =
       ~origin_x:20
       ~baseline_y:30
       ~size:30.
-      "bike")
+      [%string "%{bikes_available#Int}/%{station.ebikes_available#Int}"])
 ;;
 
-let parking_status context ~font ~title anchor =
+let parking_status context ~font ~title ~station anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(75, 55) in
-  Draw.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+  Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
     Drawing.text
       context
       ~font
@@ -40,10 +44,16 @@ let parking_status context ~font ~title anchor =
       ~origin_x:20
       ~baseline_y:30
       ~size:30.
-      "park")
+      (Int.to_string station.Citibike.Station.docks_available))
 ;;
 
-let draw ~font =
+let draw ~font ~citibike_stations =
+  let find_station = Map.find_or_error citibike_stations in
+  let%bind.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+  and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
+  and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
+  and park_station = find_station "18fcd2c1-dc8b-4a52-9f18-e9b9003bbea5"
+  and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c" in
   let open Drawing.O in
   let w = 800
   and h = 480 in
@@ -129,7 +139,7 @@ let draw ~font =
   let subway_status_left = w - 250 - status_padding in
   let status_right = w - status_padding in
   let jzm_status_y = m_y - 40 in
-  Draw.status_box
+  Drawing.status_box
     context
     (subway_status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
     (status_right, jzm_status_y - status_padding)
@@ -137,7 +147,7 @@ let draw ~font =
     ~title:"bedford"
     ~f:(fun context ->
       text context ~font ~fill:black ~origin_x:20 ~baseline_y:45 ~size:30. "L");
-  Draw.status_box
+  Drawing.status_box
     context
     (subway_status_left, jzm_status_y)
     (status_right, h - status_padding)
@@ -153,17 +163,20 @@ let draw ~font =
     context
     ~font
     ~title:"bridge"
+    ~station:bridge_station
     (Anchor.Lr (bike_status_rx, bridge_bike_status_ly));
   let roeb_bike_uy = j_y + Stroke.safe_padding (subway_stroke black) + status_padding in
   available_bike_status
     context
     ~font
     ~title:"roebling"
+    ~station:roebling_station
     (Anchor.Ur (bike_status_rx, roeb_bike_uy));
   parking_status
     context
     ~font
     ~title:"ves"
+    ~station:vesey_station
     (Anchor.Ul
        ( man_padding + Stroke.safe_padding geo_stroke + status_padding
        , h - man_padding - Stroke.safe_padding geo_stroke - man_inset - 70 ));
@@ -171,28 +184,34 @@ let draw ~font =
     context
     ~font
     ~title:"park"
+    ~station:park_station
     (Anchor.Lr
        ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
        , j_y - status_padding ));
   parking_status
     context
     ~font
-    ~title:"chur"
+    ~title:"barc"
+    ~station:barclay_station
     (Anchor.Ur
        (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
-  image
+  Ok image
 ;;
 
 let render cache =
-  let%bind citibike_stations = Citibike.query cache in
-  let%map.Deferred.Or_error font =
+  let%bind citibike_result = Citibike.query cache in
+  let%bind.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
+  and citibike_stations =
+    Latest_result.latest_success citibike_result
+    |> Or_error.map ~f:(fun completed -> completed.Latest_result.Completed.value)
+    |> return
   in
-  let image = draw ~font in
+  let%map.Deferred.Or_error image = draw ~font ~citibike_stations |> return in
   { Screen_render.buffer = image
   ; time_until_refresh = Time_ns.Span.of_sec 30.
   ; debug_info =
-      citibike_stations
+      citibike_result
       |> Latest_result.map ~f:(fun stations ->
         Map.find stations "66dc8768-0aca-11e7-82f6-3863bb44ef7c")
       |> Latest_result.sexp_of_t (Option.sexp_of_t Citibike.Station.sexp_of_t)
