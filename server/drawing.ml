@@ -39,6 +39,22 @@ module Context = struct
   ;;
 end
 
+module Anchor = struct
+  type t =
+    | Ul of int * int
+    | Ur of int * int
+    | Ll of int * int
+    | Lr of int * int
+
+  let resolve t ~size:(width, height) =
+    match t with
+    | Ul (left, top) -> (left, top), (left + width, top + height)
+    | Ur (right, top) -> (right - width, top), (right, top + height)
+    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
+    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
+  ;;
+end
+
 module Fill = struct
   type t = int * int -> [ `b | `w ]
 
@@ -376,6 +392,7 @@ let status_box
 
 module O = struct
   module Context = Context
+  module Anchor = Anchor
   module Fill = Fill
   module Stroke = Stroke
 

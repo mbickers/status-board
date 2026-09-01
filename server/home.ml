@@ -1,22 +1,6 @@
 open! Core
 open! Async
 
-module Anchor = struct
-  type t =
-    | Ul of int * int
-    | Ur of int * int
-    | Ll of int * int
-    | Lr of int * int
-
-  let resolve t ~size:(width, height) =
-    match t with
-    | Ul (left, top) -> (left, top), (left + width, top + height)
-    | Ur (right, top) -> (right - width, top), (right, top + height)
-    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
-    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
-  ;;
-end
-
 let availability_status
       context
       ~font
@@ -27,7 +11,7 @@ let availability_status
       ~baseline_padding
       anchor
   =
-  let upper_left, lower_right = Anchor.resolve anchor ~size:box_size
+  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size
   and usable_capacity =
     station.capacity - station.bikes_disabled - station.docks_disabled
   in
@@ -89,13 +73,15 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
     anchor
 ;;
 
-let draw ~font ~citibike_stations =
+let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~now =
   let find_station = Map.find_or_error citibike_stations in
   let%bind.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
   and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
   and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
   and park_station = find_station "18fcd2c1-dc8b-4a52-9f18-e9b9003bbea5"
-  and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c" in
+  and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
+  and bedford_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "L08"
+  and marcy_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16" in
   let open Drawing.O in
   (* Short geometry variable names keep the function legible. *)
   let w = 800
@@ -106,7 +92,7 @@ let draw ~font ~citibike_stations =
   and land_fill = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
-  text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
+  text context ~font ~fill:black ~origin_x:200 ~baseline_y:100 ~size:80. "weather here";
   let map_top = h / 2
   and man_fade_height = 20 in
   let man_faded_top = map_top - man_fade_height in
@@ -151,14 +137,14 @@ let draw ~font ~citibike_stations =
     manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = Stroke.create ~casing:(Stroke.solid `w 12) fill 8 in
-  let l_fill = Fill.bayer_exn ~white_frac:(9. /. 16.)
+  let l_fill : Fill.t = Fill.bayer_exn ~white_frac:(9. /. 16.)
   and l_y = map_top + 30 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke l_fill)
     [ man_padding + 25, l_y; w, l_y ];
-  let j_fill = Fill.bayer_exn ~white_frac:(1. /. 16.)
+  let j_fill : Fill.t = Fill.bayer_exn ~white_frac:(1. /. 16.)
   and j_y = h - 100
   and j_x = man_w - man_inset - 15 in
   rounded_path
@@ -166,7 +152,7 @@ let draw ~font ~citibike_stations =
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
-  let m_fill = north_fade (Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.))
+  let m_fill : Fill.t = Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.)
   and m_y = j_y - 12
   and m_diag = 25
   and m_vert_x = man_w - (man_inset * 2) in
@@ -174,7 +160,7 @@ let draw ~font ~citibike_stations =
   rounded_path
     context
     ~radius:20
-    ~stroke:(subway_stroke m_fill)
+    ~stroke:(subway_stroke (north_fade m_fill))
     [ w, m_y
     ; man_w - m_diag, m_y
     ; man_w - m_diag, m_houston_y
@@ -183,24 +169,42 @@ let draw ~font ~citibike_stations =
     ];
   let status_padding = 8 in
   let subway_status_left = w - 250 - status_padding
-  and status_right = w - status_padding in
-  let jzm_status_y = m_y - 40 in
-  Drawing.status_box
+  and subway_status_right = w - status_padding in
+  let bedford_status_top = map_top + status_padding + Stroke.safe_padding geo_stroke
+  and marcy_status_top = m_y - 40 in
+  Subway_status_box.draw
     context
-    (subway_status_left, map_top + status_padding + Stroke.safe_padding geo_stroke)
-    (status_right, jzm_status_y - status_padding)
+    ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
     ~font
     ~title:"bedford"
-    ~f:(fun context ~fill:_ ->
-      text context ~font ~fill:black ~origin_x:22 ~baseline_y:47 ~size:30. "L");
-  Drawing.status_box
+    ~now
+    ~stop_status:bedford_status
+    ~rows:
+      [ { bullet = "L", l_fill
+        ; route_ids = [ "L" ]
+        ; minimum_minutes = 11
+        ; westbound_mta_direction = "N"
+        }
+      ];
+  Subway_status_box.draw
     context
-    (subway_status_left, jzm_status_y)
-    (status_right, h - status_padding)
+    ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
     ~font
     ~title:"marcy"
-    ~f:(fun context ~fill:_ ->
-      text context ~font ~fill:black ~origin_x:22 ~baseline_y:47 ~size:30. "J/Z/M");
+    ~now
+    ~stop_status:marcy_status
+    ~rows:
+      [ { bullet = "J", j_fill
+        ; route_ids = [ "J"; "Z" ]
+        ; minimum_minutes = 5
+        ; westbound_mta_direction = "S"
+        }
+      ; { bullet = "M", m_fill
+        ; route_ids = [ "M" ]
+        ; minimum_minutes = 5
+        ; westbound_mta_direction = "S"
+        }
+      ];
   let bike_status_rx = subway_status_left - status_padding in
   available_bike_status
     context
@@ -243,15 +247,22 @@ let draw ~font ~citibike_stations =
 ;;
 
 let render cache =
-  let%bind citibike_result = Citibike.query cache in
+  let%bind citibike_result = Citibike.query cache
+  and mta_subway_status_result =
+    Mta_subway.query
+      cache
+      ~which_feeds:[ Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
+  in
   let%bind.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
   and citibike_stations =
     Latest_result.latest_success citibike_result
     |> Or_error.map ~f:(fun completed -> completed.value)
     |> return
+  and mta_subway_status = mta_subway_status_result |> return in
+  let%map.Deferred.Or_error image =
+    draw ~font ~citibike_stations ~mta_subway_status ~now:(Time_ns.now ()) |> return
   in
-  let%map.Deferred.Or_error image = draw ~font ~citibike_stations |> return in
   { Screen_render.buffer = image
   ; time_until_refresh = Time_ns.Span.of_sec 30.
   ; debug_info =

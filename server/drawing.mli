@@ -9,6 +9,16 @@ module Context : sig
   val write : t -> int * int -> [ `b | `w ] -> unit
 end
 
+module Anchor : sig
+  type t =
+    | Ul of int * int
+    | Ur of int * int
+    | Ll of int * int
+    | Lr of int * int
+
+  val resolve : t -> size:int * int -> (int * int) * (int * int)
+end
+
 module Fill : sig
   type t = int * int -> [ `b | `w ]
 
@@ -62,6 +72,7 @@ val status_box
 
 module O : sig
   module Context = Context
+  module Anchor = Anchor
   module Fill = Fill
   module Stroke = Stroke
 
