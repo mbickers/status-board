@@ -37,6 +37,12 @@ module Alert = struct
   [@@deriving sexp]
 end
 
+module Feed = struct
+  type _ t =
+    | Realtime : Realtime_feed.t -> Arrival.t list String.Map.t t
+    | All_alerts : Alert.t list t
+end
+
 module Stop_status = struct
   type t =
     { upcoming_arrivals : Arrival.t list
@@ -52,31 +58,6 @@ module Status = struct
     }
   [@@deriving sexp]
 end
-
-let realtime_feed_url realtime_feed =
-  match realtime_feed with
-  | Realtime_feed.Lines_1_2_3_4_5_6_7 ->
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
-  | Lines_A_C_E ->
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
-  | Lines_B_D_F_M ->
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"
-  | Line_G -> "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"
-  | Lines_J_Z -> "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"
-  | Line_L -> "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
-  | Lines_N_Q_R_W ->
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"
-  | Staten_island_railway ->
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-si"
-;;
-
-let fetch_message url =
-  let%bind.Deferred.Or_error contents = Http.get_body url in
-  Gtfs.FeedMessage.from_proto (Ocaml_protoc_plugin.Reader.create contents)
-  |> Core.Result.map_error ~f:(fun error ->
-    Error.of_string (Ocaml_protoc_plugin.Result.show_error error))
-  |> return
-;;
 
 let time_ns_of_seconds_since_epoch seconds =
   Or_error.try_with (fun () ->
@@ -130,13 +111,6 @@ let upcoming_arrivals (feed_message : Gtfs.FeedMessage.t) =
         Time_ns.compare left.Arrival.arrives_at right.arrives_at)))
 ;;
 
-let fetch_upcoming_arrivals realtime_feed =
-  let%bind.Deferred.Or_error feed_message =
-    realtime_feed |> realtime_feed_url |> fetch_message
-  in
-  return (upcoming_arrivals feed_message)
-;;
-
 let translated_text (translated_string : Gtfs.TranslatedString.t) =
   let translations = translated_string.translation in
   let preferred =
@@ -169,12 +143,37 @@ let alert (entity : Gtfs.FeedEntity.t) =
     })
 ;;
 
-let fetch_all_alerts () =
-  let%bind.Deferred.Or_error feed_message =
-    fetch_message
-      "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fall-alerts"
+let fetch_message (type result) (feed : result Feed.t) =
+  let base_url = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds" in
+  let url =
+    match feed with
+    | Feed.Realtime realtime_feed ->
+      base_url
+      ^
+        (match realtime_feed with
+        | Realtime_feed.Lines_1_2_3_4_5_6_7 -> "/nyct%2Fgtfs"
+        | Lines_A_C_E -> "/nyct%2Fgtfs-ace"
+        | Lines_B_D_F_M -> "/nyct%2Fgtfs-bdfm"
+        | Line_G -> "/nyct%2Fgtfs-g"
+        | Lines_J_Z -> "/nyct%2Fgtfs-jz"
+        | Line_L -> "/nyct%2Fgtfs-l"
+        | Lines_N_Q_R_W -> "/nyct%2Fgtfs-nqrw"
+        | Staten_island_railway -> "/nyct%2Fgtfs-si")
+    | All_alerts -> base_url ^ "/camsys%2Fall-alerts"
   in
-  return (Ok (List.filter_map feed_message.entity ~f:alert))
+  let decode : Gtfs.FeedMessage.t -> result Or_error.t =
+    match feed with
+    | Feed.Realtime _ -> upcoming_arrivals
+    | All_alerts -> fun feed_message -> Ok (List.filter_map feed_message.entity ~f:alert)
+  in
+  let%bind.Deferred.Or_error contents = Http.get_body url in
+  let%bind.Deferred.Or_error feed_message =
+    Gtfs.FeedMessage.from_proto (Ocaml_protoc_plugin.Reader.create contents)
+    |> Core.Result.map_error ~f:(fun error ->
+      Error.of_string (Ocaml_protoc_plugin.Result.show_error error))
+    |> return
+  in
+  return (decode feed_message)
 ;;
 
 let query cache ~which_feeds =
@@ -197,7 +196,7 @@ let query cache ~which_feeds =
           type t = Arrival.t list String.Map.t [@@deriving sexp]
         end)
         ~max_age
-        ~fetch:(fun () -> fetch_upcoming_arrivals realtime_feed)
+        ~fetch:(fun () -> fetch_message (Feed.Realtime realtime_feed))
         ~key)
   and all_alerts_result =
     Cache.get
@@ -206,7 +205,7 @@ let query cache ~which_feeds =
         type t = Alert.t list [@@deriving sexp]
       end)
       ~max_age
-      ~fetch:fetch_all_alerts
+      ~fetch:(fun () -> fetch_message Feed.All_alerts)
       ~key:"mta-all-alerts"
   in
   return
