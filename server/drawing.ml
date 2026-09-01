@@ -73,29 +73,28 @@ module Fill = struct
     if index < 0 then index + size else index
   ;;
 
-  let bayer_exn ?(size = 4) ?(offset = 0, 0) level =
+  let bayer_threshold ~size =
+    let matrix = bayer_matrix size in
+    fun (x, y) ->
+      Float.of_int matrix.(tile_index ~size y).(tile_index ~size x)
+      /. Float.of_int (size * size)
+  ;;
+
+  let bayer_exn ?(size = 4) ?(offset = 0, 0) ~white_frac =
     if size <= 0 || size land (size - 1) <> 0
     then invalid_arg "Bayer matrix size must be a positive power of two";
-    let matrix = bayer_matrix size in
-    let level = Int.max 0 (Int.min (size * size) level) in
+    let threshold = bayer_threshold ~size in
     let offset_x, offset_y = offset in
     fun (x, y) ->
-      if
-        matrix.(tile_index ~size (y + offset_y)).(tile_index ~size (x + offset_x))
-        >= level
+      if Float.compare (threshold (x + offset_x, y + offset_y)) white_frac >= 0
       then `b
       else `w
   ;;
 
-  let fade_to_white fill ~level =
-    let size = 16 in
-    let matrix = bayer_matrix size in
+  let fade_to_white fill ~white_frac =
+    let threshold = bayer_threshold ~size:16 in
     fun ((x, y) as point) ->
-      if
-        matrix.(tile_index ~size y).(tile_index ~size x)
-        < Int.max 0 (Int.min (size * size) (level point))
-      then fill point
-      else `w
+      if Float.compare (threshold (x, y)) (white_frac point) >= 0 then fill point else `w
   ;;
 
   let fractional ~frac ~frontier_angle_degrees context =

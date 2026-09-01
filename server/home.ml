@@ -103,7 +103,7 @@ let draw ~font ~citibike_stations =
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
   let black = Fill.solid `b
-  and land_fill = Fill.bayer_exn ~size:16 254
+  and land_fill = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:222 ~baseline_y:100 ~size:80. "hello world";
@@ -111,7 +111,10 @@ let draw ~font ~citibike_stations =
   and man_fade_height = 20 in
   let man_faded_top = map_top - man_fade_height in
   let north_fade fill =
-    fade_to_white ~level:(fun (_, y) -> (y - man_faded_top) * 256 / man_fade_height) fill
+    fade_to_white
+      ~white_frac:(fun (_, y) ->
+        1. -. (Float.of_int (y - man_faded_top) /. Float.of_int man_fade_height))
+      fill
   in
   let man_w = 250
   and man_padding = 10
@@ -148,14 +151,14 @@ let draw ~font ~citibike_stations =
     manhattan_path;
   rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = Stroke.create ~casing:(Stroke.solid `w 12) fill 8 in
-  let l_fill = Fill.bayer_exn 9
+  let l_fill = Fill.bayer_exn ~white_frac:(9. /. 16.)
   and l_y = map_top + 30 in
   rounded_path
     context
     ~radius:20
     ~stroke:(subway_stroke l_fill)
     [ man_padding + 25, l_y; w, l_y ];
-  let j_fill = Fill.bayer_exn 1
+  let j_fill = Fill.bayer_exn ~white_frac:(1. /. 16.)
   and j_y = h - 100
   and j_x = man_w - man_inset - 15 in
   rounded_path
@@ -163,7 +166,7 @@ let draw ~font ~citibike_stations =
     ~radius:20
     ~stroke:(subway_stroke j_fill)
     [ w, j_y; j_x, j_y; j_x, h - man_padding - 25 ];
-  let m_fill = north_fade (Fill.bayer_exn ~offset:(1, 1) 10)
+  let m_fill = north_fade (Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.))
   and m_y = j_y - 12
   and m_diag = 25
   and m_vert_x = man_w - (man_inset * 2) in
