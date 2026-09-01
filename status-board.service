@@ -4,10 +4,10 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-WorkingDirectory=/opt/status-board
-ExecStart=/opt/status-board/_build/default/server/bin/main.exe -cache-path /var/lib/status-board/cache -port 8080
+WorkingDirectory=%h/status-board
+ExecStart=%h/.local/bin/status-board -cache-path %h/.local/state/status-board/cache -port 8000
 Restart=always
 RestartSec=1
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
