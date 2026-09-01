@@ -274,6 +274,10 @@ let render cache =
     Mta_subway.query
       cache
       ~which_feeds:[ Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
+  and _weather_result =
+    Weather.query
+      cache
+      ~coordinates:{ Weather.Coordinates.latitude = 40.7084; longitude = -73.9578 }
   in
   let%bind.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return

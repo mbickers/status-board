@@ -88,7 +88,8 @@ type hour =
   }
 
 let parse_time ~zone time =
-  Or_error.try_with (fun () -> Time_ns.of_localized_string ~zone time)
+  Or_error.try_with (fun () ->
+    Time_ns.of_localized_string ~zone (String.tr time ~target:'T' ~replacement:' '))
 ;;
 
 let rec combine_hours ~zone ~times ~precipitation_probabilities ~weather_codes ~uv_indices
