@@ -5,6 +5,7 @@ module Context : sig
 
   val create : Image.image -> t
   val crop : t -> size:int * int -> offset:int * int -> t
+  val size : t -> int * int
   val write : t -> int * int -> [ `b | `w ] -> unit
 end
 
@@ -12,6 +13,7 @@ module Fill : sig
   type t = int * int -> [ `b | `w ]
 
   val solid : [ `b | `w ] -> t
+  val invert : t -> t
   val bayer : ?size:int -> ?offset:int * int -> int -> t
   val fade_to_white : t -> level:(int * int -> int) -> t
 end
@@ -41,7 +43,8 @@ val draw_quadratic_curve
 val rounded_path : Context.t -> radius:int -> stroke:Stroke.t -> (int * int) list -> unit
 
 val text
-  :  Context.t
+  :  ?halo:int * Fill.t
+  -> Context.t
   -> font:Font.t
   -> fill:Fill.t
   -> origin_x:int
@@ -65,6 +68,7 @@ module O : sig
   module Stroke = Stroke
 
   val solid : [ `b | `w ] -> Fill.t
+  val invert : Fill.t -> Fill.t
   val bayer : ?size:int -> ?offset:int * int -> int -> Fill.t
   val fade_to_white : Fill.t -> level:(int * int -> int) -> Fill.t
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
@@ -85,7 +89,8 @@ module O : sig
     -> unit
 
   val text
-    :  Context.t
+    :  ?halo:int * Fill.t
+    -> Context.t
     -> font:Font.t
     -> fill:Fill.t
     -> origin_x:int

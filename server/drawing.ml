@@ -17,6 +17,8 @@ module Context = struct
     { t with offset = x + offset_x, y + offset_y; size }
   ;;
 
+  let size t = t.size
+
   let write t (x, y) color =
     let width, height = t.size in
     if x >= 0 && y >= 0 && x < width && y < height
@@ -42,6 +44,12 @@ module Fill = struct
   type t = int * int -> [ `b | `w ]
 
   let solid color _ = color
+
+  let invert t point =
+    match t point with
+    | `b -> `w
+    | `w -> `b
+  ;;
 
   let rec bayer_matrix = function
     | 1 -> [| [| 0 |] |]
@@ -269,18 +277,30 @@ let rec rounded_path context ~radius ~stroke points =
     draw first first points
 ;;
 
-let text context ~font ~fill ~origin_x ~baseline_y ~size string =
+let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   let rendered_text = Font.render_text font string ~size in
-  for y = 0 to rendered_text.height - 1 do
-    for x = 0 to rendered_text.width - 1 do
-      if Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
-      then (
-        let point =
-          origin_x - rendered_text.origin_x + x, baseline_y - rendered_text.baseline_y + y
-        in
-        Context.write context point (fill point))
+  let iter_black_pixels ~f =
+    for y = 0 to rendered_text.height - 1 do
+      for x = 0 to rendered_text.width - 1 do
+        if Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
+        then
+          f
+            ( origin_x - rendered_text.origin_x + x
+            , baseline_y - rendered_text.baseline_y + y )
+      done
     done
-  done
+  in
+  Option.iter halo ~f:(fun (distance, halo_fill) ->
+    iter_black_pixels ~f:(fun (x, y) ->
+      for dy = -distance to distance do
+        for dx = -distance to distance do
+          if (dx * dx) + (dy * dy) <= distance * distance
+          then (
+            let point = x + dx, y + dy in
+            Context.write context point (halo_fill point))
+        done
+      done));
+  iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
 ;;
 
 let status_box context (left, top) (right, bottom) ~font ~title ~f =
@@ -298,32 +318,30 @@ let status_box context (left, top) (right, bottom) ~font ~title ~f =
     and dy = y - nearest_y in
     (dx * dx) + (dy * dy) <= radius * radius
   in
-  for y = top to bottom - 1 do
-    for x = left to right - 1 do
-      if inside ~inset:0 (x, y)
-      then
-        Context.write
-          context
-          (x, y)
-          (if inside ~inset:stroke.width (x, y) then `w else stroke.fill (x, y))
+  let iter_pixels ~f =
+    for y = top to bottom - 1 do
+      for x = left to right - 1 do
+        if inside ~inset:0 (x, y)
+        then f (x, y) ~is_interior:(inside ~inset:stroke.width (x, y))
+      done
     done
-  done;
+  in
+  iter_pixels ~f:(fun point ~is_interior ->
+    Context.write context point (if is_interior then `w else stroke.fill point));
   let safe_padding = Stroke.safe_padding stroke in
   f
     (Context.crop
        context
        ~offset:(left + safe_padding, top + safe_padding)
        ~size:(right - left - (2 * safe_padding), bottom - top - (2 * safe_padding)));
+  iter_pixels ~f:(fun point ~is_interior ->
+    if not is_interior then Context.write context point (stroke.fill point));
   let title_size = 17. in
   let rendered_title = Font.render_text font title ~size:title_size in
   let title_left = left + radius + 5 in
   let title_top = top - 3 in
-  rect
-    context
-    ~fill:(Fill.solid `w)
-    (title_left - 4, title_top - 2)
-    (title_left + rendered_title.width + 4, title_top + rendered_title.height + 2);
   text
+    ~halo:(2, Fill.solid `w)
     context
     ~font
     ~fill:(Fill.solid `b)
@@ -339,6 +357,7 @@ module O = struct
   module Stroke = Stroke
 
   let solid = Fill.solid
+  let invert = Fill.invert
   let bayer = Fill.bayer
   let fade_to_white = Fill.fade_to_white
   let rect = rect

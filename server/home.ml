@@ -17,32 +17,64 @@ module Anchor = struct
   ;;
 end
 
+let dock_occupancy_fill ~size:(width, height) (station : Citibike.Station.t) =
+  if station.capacity <= 0 || station.bikes_available <= 0
+  then Drawing.Fill.solid `w
+  else if station.bikes_available >= station.capacity
+  then Drawing.Fill.solid `b
+  else (
+    let frontier_slope = Float.tan (Float.pi /. 12.) in
+    fun (x, y) ->
+      let frontier_at_center =
+        Float.of_int width
+        *. Float.of_int station.bikes_available
+        /. Float.of_int station.capacity
+      in
+      let frontier =
+        frontier_at_center
+        +. ((Float.of_int y -. (Float.of_int height /. 2.)) *. frontier_slope)
+      in
+      if Float.compare (Float.of_int x) frontier < 0 then `b else `w)
+;;
+
 (* TODO: Check whether the dock is installed and renting or returning before displaying availability. *)
 let available_bike_status context ~font ~title ~(station : Citibike.Station.t) anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(120, 65) in
   let bikes_available = station.bikes_available - station.ebikes_available in
+  let text = [%string "%{bikes_available#Int}|%{station.ebikes_available#Int}e"] in
+  let size = 40. in
+  let rendered_text = Font.render_text font text ~size in
   Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+    let width, height = Drawing.Context.size context in
+    let availability_fill = dock_occupancy_fill ~size:(width, height) station in
+    Drawing.rect context ~fill:availability_fill (0, 0) (width, height);
     Drawing.text
       context
       ~font
-      ~fill:(Drawing.Fill.solid `b)
-      ~origin_x:20
-      ~baseline_y:30
-      ~size:30.
-      [%string "%{bikes_available#Int}/%{station.ebikes_available#Int}"])
+      ~fill:(Drawing.Fill.invert availability_fill)
+      ~origin_x:(((width - rendered_text.width) / 2) + rendered_text.origin_x)
+      ~baseline_y:45
+      ~size
+      text)
 ;;
 
 let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
   let upper_left, lower_right = Anchor.resolve anchor ~size:(75, 55) in
+  let text = Int.to_string station.docks_available in
+  let size = 45. in
+  let rendered_text = Font.render_text font text ~size in
   Drawing.status_box context upper_left lower_right ~font ~title ~f:(fun context ->
+    let width, height = Drawing.Context.size context in
+    let availability_fill = dock_occupancy_fill ~size:(width, height) station in
+    Drawing.rect context ~fill:availability_fill (0, 0) (width, height);
     Drawing.text
       context
       ~font
-      ~fill:(Drawing.Fill.solid `b)
-      ~origin_x:20
-      ~baseline_y:30
-      ~size:30.
-      (Int.to_string station.docks_available))
+      ~fill:(Drawing.Fill.invert availability_fill)
+      ~origin_x:(((width - rendered_text.width) / 2) + rendered_text.origin_x)
+      ~baseline_y:41
+      ~size
+      text)
 ;;
 
 let draw ~font ~citibike_stations =
