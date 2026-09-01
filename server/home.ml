@@ -202,7 +202,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
       ; { bullet = "M", m_fill
         ; route_ids = [ "M" ]
         ; minimum_minutes = 5
-        ; westbound_mta_direction = "S"
+        ; westbound_mta_direction = "N"
         }
       ];
   let bike_status_rx = subway_status_left - status_padding in
