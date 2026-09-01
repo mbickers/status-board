@@ -12,4 +12,10 @@ type t
 
 val create : unit -> t
 val publish : t -> name:string -> buffer:Image.image -> Publish_record.t
+val publish_setup_image : t -> name:string -> buffer:Image.image -> Publish_record.t
 val respond : t -> name:string -> Cohttp_async.Server.response_action Deferred.t
+
+val respond_setup_image
+  :  t
+  -> name:string
+  -> Cohttp_async.Server.response_action Deferred.t

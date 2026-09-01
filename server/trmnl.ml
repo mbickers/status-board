@@ -26,15 +26,16 @@ let request_origin request =
   | None, None -> Or_error.error_string "Request has no Host header"
 ;;
 
-let render_and_publish t ~request =
+let render_and_publish t ~request ~publish =
   let%bind screen_render = t.renderer t.cache in
   return
     (let%bind.Or_error screen_render = screen_render in
      let%bind.Or_error origin = request_origin request in
      let published =
-       Image_publisher.publish t.image_publisher ~name:t.name ~buffer:screen_render.buffer
+       publish t.image_publisher ~name:t.name ~buffer:screen_render.buffer
      in
-     Ok (screen_render, published, [%string "%{origin}%{published.image_url}"]))
+     let { Image_publisher.Publish_record.image_url; filename = _ } = published in
+     Ok (screen_render, published, [%string "%{origin}%{image_url}"]))
 ;;
 
 let respond_with_json response =
@@ -50,7 +51,9 @@ let respond_with_json response =
 ;;
 
 let respond_setup t ~request =
-  let%bind result = render_and_publish t ~request in
+  let%bind result =
+    render_and_publish t ~request ~publish:Image_publisher.publish_setup_image
+  in
   respond_with_json
     (let%map.Or_error _, published, image_url = result in
      `Assoc
@@ -63,7 +66,7 @@ let respond_setup t ~request =
 ;;
 
 let respond_display t ~request =
-  let%bind result = render_and_publish t ~request in
+  let%bind result = render_and_publish t ~request ~publish:Image_publisher.publish in
   respond_with_json
     (let%map.Or_error screen_render, published, image_url = result in
      let refresh_seconds =
