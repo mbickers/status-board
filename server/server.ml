@@ -25,6 +25,7 @@ let run ~cache_path ~port =
            |> Cohttp.Request.uri
            |> Uri.path
            |> String.chop_prefix_if_exists ~prefix:"/"
+           |> String.chop_suffix_if_exists ~suffix:"/"
            |> String.split ~on:'/'
          in
          (match path with
