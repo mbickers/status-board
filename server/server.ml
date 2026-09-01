@@ -4,10 +4,12 @@ open! Async
 let run ~cache_path ~port =
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
   let image_publisher = Image_publisher.create () in
+  let cache = Cache.create ~path:cache_path in
+  let trmnl = Trmnl.create ~cache ~image_publisher ~name:"home" ~renderer:Home.render in
   let%bind.Deferred.Or_error preview_handler =
     Preview.create
       ~autoreload_script:(Autoreload_on_restart.script autoreload)
-      ~cache:(Cache.create ~path:cache_path)
+      ~cache
       ~image_publisher
       ~renderers:(String.Map.of_alist_exn [ "home", Home.render ])
     |> return
@@ -33,6 +35,7 @@ let run ~cache_path ~port =
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
          | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
+         | `GET, [ "api"; "display" ] -> Trmnl.respond trmnl ~request
          | _ -> Http.respond_string ~status:`Not_found "Not found")
   in
   Preview.renderer_names preview_handler

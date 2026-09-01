@@ -45,7 +45,7 @@ let respond t ~name =
     let%bind screen_render = renderer t.cache in
     let html =
       let%bind.Or_error screen_render = screen_render in
-      let { Image_publisher.Publish_record.image_url } =
+      let { Image_publisher.Publish_record.image_url; filename = _ } =
         Image_publisher.publish t.image_publisher ~name ~buffer:screen_render.buffer
       in
       page_html t ~image_url screen_render
