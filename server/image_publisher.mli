@@ -2,7 +2,10 @@ open! Core
 open! Async
 
 module Publish_record : sig
-  type t = { image_url : string }
+  type t =
+    { image_url : string
+    ; filename : string
+    }
 end
 
 type t
