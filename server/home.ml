@@ -41,7 +41,14 @@ let availability_status
         text)
 ;;
 
-let available_bike_status context ~font ~title ~(station : Citibike.Station.t) anchor =
+let available_bike_status
+      context
+      ~font
+      ~title
+      ~box_size
+      ~(station : Citibike.Station.t)
+      anchor
+  =
   let text, baseline_padding =
     if station.is_renting
     then (
@@ -54,7 +61,7 @@ let available_bike_status context ~font ~title ~(station : Citibike.Station.t) a
     context
     ~font
     ~title
-    ~box_size:(120, 65)
+    ~box_size
     ~station
     ~text
     ~baseline_padding
@@ -117,8 +124,17 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ; man_w - man_inset, man_faded_top
     ]
   in
-  let br_start = man_w + 100
-  and br_foot = 50 in
+  let status_padding = 8
+  and available_bike_status_size = 120, 65 in
+  let available_bike_status_width, _ = available_bike_status_size in
+  let br_start =
+    w
+    - Subway_status_box.width
+    - available_bike_status_width
+    - (3 * status_padding)
+    - Stroke.safe_padding geo_stroke
+  in
+  let br_foot = 50 in
   let brooklyn_path =
     [ w, map_top; br_start, map_top; br_start, h - br_foot; br_start - br_foot, h ]
   in
@@ -167,11 +183,9 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ; m_vert_x, m_houston_y
     ; m_vert_x, man_faded_top
     ];
-  let status_padding = 8 in
   let subway_status_right = w - status_padding in
-  let bedford_status_top = map_top + status_padding + Stroke.safe_padding geo_stroke
-  and marcy_status_top = m_y - 40 in
-  let (subway_status_left, _), _ =
+  let bedford_status_top = map_top + status_padding + Stroke.safe_padding geo_stroke in
+  let (subway_status_left, _), (_, bedford_status_bottom) =
     Subway_status_box.draw
       context
       ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
@@ -189,7 +203,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
   in
   Subway_status_box.draw
     context
-    ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
+    ~anchor:(Anchor.Ur (subway_status_right, bedford_status_bottom + status_padding))
     ~font
     ~title:"marcy"
     ~now
@@ -212,6 +226,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     context
     ~font
     ~title:"bridge"
+    ~box_size:available_bike_status_size
     ~station:bridge_station
     (Anchor.Lr
        (bike_status_rx, m_y - status_padding - Stroke.safe_padding (subway_stroke black)));
@@ -219,6 +234,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     context
     ~font
     ~title:"roebling"
+    ~box_size:available_bike_status_size
     ~station:roebling_station
     (Anchor.Ur
        (bike_status_rx, j_y + Stroke.safe_padding (subway_stroke black) + status_padding));

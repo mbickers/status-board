@@ -9,6 +9,8 @@ module Row = struct
     }
 end
 
+let width = 340
+
 let draw_bullet
       context
       ~font
@@ -112,7 +114,7 @@ let draw_row
   let label, fill = row.bullet in
   let eastbound_direction =
     if String.equal row.westbound_mta_direction "N" then "S" else "N"
-  and bullet_text_fill = Drawing.Fill.solid (if String.equal label "J" then `w else `b)
+  and bullet_text_fill = Drawing.Fill.solid `w
   and text_left, text_middle, text_right =
     columns context ~bullet_center_x ~bullet_radius ~padding
   in
@@ -136,7 +138,7 @@ let draw_row
     ~text_fill:bullet_text_fill
     ~label
     ~radius:bullet_radius
-    ~center:(bullet_center_x, center_y);
+    ~center:(bullet_center_x, center_y - 6);
   draw_centered_text
     (departure_text row.westbound_mta_direction)
     ~left:text_left
@@ -148,12 +150,11 @@ let draw_row
 ;;
 
 let draw context ~anchor ~font ~title ~now ~stop_status ~rows =
-  let width = 250
-  and padding = 8
-  and bullet_radius = 18
+  let padding = 8
+  and bullet_radius = 20
   and arrow_half_height = 6.
-  and bullet_font_size = 30.
-  and departure_font_size = 25. in
+  and bullet_font_size = 35.
+  and departure_font_size = 40. in
   let bullet_center_x = padding + bullet_radius
   and arrow_center_y = Float.of_int padding +. arrow_half_height
   and departure_line_height =
@@ -163,9 +164,14 @@ let draw context ~anchor ~font ~title ~now ~stop_status ~rows =
     Int.of_float (arrow_center_y +. arrow_half_height)
     + padding
     + (departure_line_height / 2)
+    + 3
   and row_height = Int.max (2 * bullet_radius) departure_line_height + padding in
   let box_height =
-    first_row_center_y + ((List.length rows - 1) * row_height) + bullet_radius + padding
+    first_row_center_y
+    + ((List.length rows - 1) * row_height)
+    + bullet_radius
+    + padding
+    - 2
   in
   let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:(width, box_height) in
   Drawing.status_box

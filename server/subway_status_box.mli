@@ -9,6 +9,8 @@ module Row : sig
     }
 end
 
+val width : int
+
 val draw
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
