@@ -1,14 +1,25 @@
 open! Core
 open! Async
 
+let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
+  let rendered_text = Font.render_text font text ~size in
+  Drawing.text
+    context
+    ~font
+    ~fill
+    ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
+    ~baseline_y
+    ~size
+    text
+;;
+
 let availability_status
       context
       ~font
       ~title
       ~box_size
       ~(station : Citibike.Station.t)
-      ~text
-      ~baseline_padding
+      ~f
       anchor
   =
   let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size
@@ -27,18 +38,7 @@ let availability_status
     ~font
     ~title
     ~fill:(Drawing.Fill.fractional ~frac ~frontier_angle_degrees:15.)
-    ~f:(fun context ~fill ->
-      let width, height = Drawing.Context.size context
-      and font_size = 40. in
-      let rendered_text = Font.render_text font text ~size:font_size in
-      Drawing.text
-        context
-        ~font
-        ~fill:(Drawing.Fill.invert fill)
-        ~origin_x:(((width - rendered_text.width) / 2) + rendered_text.origin_x)
-        ~baseline_y:(height - baseline_padding)
-        ~size:font_size
-        text)
+    ~f
 ;;
 
 let available_bike_status
@@ -49,22 +49,67 @@ let available_bike_status
       ~(station : Citibike.Station.t)
       anchor
   =
-  let text, baseline_padding =
-    if station.is_renting
-    then (
-      let bikes_available = station.bikes_available - station.ebikes_available in
-      [%string "%{bikes_available#Int}|%{station.ebikes_available#Int}e"], 18)
-    else "off", 12
-  in
-  (* The offset from the base of the board differs because of the height of the | character. *)
   availability_status
     context
     ~font
     ~title
     ~box_size
     ~station
-    ~text
-    ~baseline_padding
+    ~f:(fun context ~fill ->
+      let width, height = Drawing.Context.size context in
+      let fill = Drawing.Fill.invert fill
+      and count_size = 40.
+      and baseline_y = height - 12 in
+      if station.is_renting
+      then (
+        let middle = width / 2 in
+        let bikes_available = station.bikes_available - station.ebikes_available
+        and ebikes_available = Int.to_string station.ebikes_available in
+        draw_centered_text
+          context
+          ~font
+          ~fill
+          ~size:count_size
+          ~baseline_y
+          ~left:0
+          ~right:middle
+          (Int.to_string bikes_available);
+        draw_centered_text
+          context
+          ~font
+          ~fill
+          ~size:count_size
+          ~baseline_y
+          ~left:middle
+          ~right:width
+          ebikes_available;
+        let ebike_label_size = 22. in
+        let rendered_ebikes = Font.render_text font ebikes_available ~size:count_size
+        and rendered_ebike_label = Font.render_text font "e" ~size:ebike_label_size in
+        draw_centered_text
+          context
+          ~font
+          ~fill
+          ~size:ebike_label_size
+          ~baseline_y:
+            (baseline_y
+             - rendered_ebikes.baseline_y
+             - 5
+             - rendered_ebike_label.height
+             + rendered_ebike_label.baseline_y)
+          ~left:middle
+          ~right:width
+          "e")
+      else
+        draw_centered_text
+          context
+          ~font
+          ~fill
+          ~size:count_size
+          ~baseline_y
+          ~left:0
+          ~right:width
+          "off")
     anchor
 ;;
 
@@ -75,8 +120,17 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
     ~title
     ~box_size:(75, 55)
     ~station
-    ~text:(if station.is_returning then Int.to_string station.docks_available else "off")
-    ~baseline_padding:12
+    ~f:(fun context ~fill ->
+      let width, height = Drawing.Context.size context in
+      draw_centered_text
+        context
+        ~font
+        ~fill:(Drawing.Fill.invert fill)
+        ~size:40.
+        ~baseline_y:(height - 12)
+        ~left:0
+        ~right:width
+        (if station.is_returning then Int.to_string station.docks_available else "off"))
     anchor
 ;;
 
@@ -125,7 +179,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ]
   in
   let status_padding = 8
-  and available_bike_status_size = 120, 65 in
+  and available_bike_status_size = 120, 62 in
   let available_bike_status_width, _ = available_bike_status_size in
   let br_start =
     w
