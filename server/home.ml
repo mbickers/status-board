@@ -168,24 +168,25 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ; m_vert_x, man_faded_top
     ];
   let status_padding = 8 in
-  let subway_status_left = w - 250 - status_padding
-  and subway_status_right = w - status_padding in
+  let subway_status_right = w - status_padding in
   let bedford_status_top = map_top + status_padding + Stroke.safe_padding geo_stroke
   and marcy_status_top = m_y - 40 in
-  Subway_status_box.draw
-    context
-    ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
-    ~font
-    ~title:"bedford"
-    ~now
-    ~stop_status:bedford_status
-    ~rows:
-      [ { bullet = "L", l_fill
-        ; route_ids = [ "L" ]
-        ; minimum_minutes = 11
-        ; westbound_mta_direction = "N"
-        }
-      ];
+  let (subway_status_left, _), _ =
+    Subway_status_box.draw
+      context
+      ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
+      ~font
+      ~title:"bedford"
+      ~now
+      ~stop_status:bedford_status
+      ~rows:
+        [ { bullet = "L", l_fill
+          ; route_ids = [ "L" ]
+          ; minimum_minutes = 11
+          ; westbound_mta_direction = "N"
+          }
+        ]
+  in
   Subway_status_box.draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
@@ -204,7 +205,8 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
         ; minimum_minutes = 5
         ; westbound_mta_direction = "N"
         }
-      ];
+      ]
+  |> ignore;
   let bike_status_rx = subway_status_left - status_padding in
   available_bike_status
     context

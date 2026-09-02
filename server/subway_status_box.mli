@@ -17,4 +17,4 @@ val draw
   -> now:Time_ns.t
   -> stop_status:Mta_subway.Stop_status.t
   -> rows:Row.t list
-  -> unit
+  -> (int * int) * (int * int)
