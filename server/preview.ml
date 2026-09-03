@@ -30,7 +30,6 @@ let page_html t ~image_url ~debug_preset ~debug_preset_names screen_render =
             (Float.to_string_hum ~decimals:0 (Float.max 0. refresh_seconds *. 1_000.)) )
       ; "display_width_px", `String (Int.to_string screen_render.buffer.width)
       ; "display_height_px", `String (Int.to_string screen_render.buffer.height)
-      ; "debug_info", `String screen_render.debug_info
       ; "autoreload_script", `String t.autoreload_script
       ; "no_debug_preset_selected", `Bool (Option.is_none debug_preset)
       ; ( "debug_presets"

@@ -59,10 +59,13 @@ let available_bike_status
       let width, height = Drawing.Context.size context in
       let fill = Drawing.Fill.invert fill
       and count_size = 40.
-      and baseline_y = height - 12 in
+      and baseline_y = height - 12
+      and horizontal_padding = 2 in
+      let left = horizontal_padding
+      and right = width - horizontal_padding in
       match station.is_renting with
       | true ->
-        let middle = width / 2 in
+        let middle = (left + right) / 2 in
         let bikes_available = station.bikes_available - station.ebikes_available
         and ebikes_available = Int.to_string station.ebikes_available in
         draw_centered_text
@@ -71,7 +74,7 @@ let available_bike_status
           ~fill
           ~size:count_size
           ~baseline_y
-          ~left:0
+          ~left
           ~right:middle
           (Int.to_string bikes_available);
         draw_centered_text
@@ -81,7 +84,7 @@ let available_bike_status
           ~size:count_size
           ~baseline_y
           ~left:middle
-          ~right:width
+          ~right
           ebikes_available;
         let ebike_label_size = 22. in
         let rendered_ebikes = Font.render_text font ebikes_available ~size:count_size
@@ -98,7 +101,7 @@ let available_bike_status
              - rendered_ebike_label.height
              + rendered_ebike_label.baseline_y)
           ~left:middle
-          ~right:width
+          ~right
           "e"
       | false ->
         draw_centered_text
@@ -107,8 +110,8 @@ let available_bike_status
           ~fill
           ~size:count_size
           ~baseline_y
-          ~left:0
-          ~right:width
+          ~left
+          ~right
           "off")
     anchor
 ;;
@@ -118,7 +121,7 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
     context
     ~font
     ~title
-    ~box_size:(75, 55)
+    ~box_size:(71, 55)
     ~station
     ~f:(fun context ~fill ->
       let width, height = Drawing.Context.size context in
@@ -136,21 +139,32 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
     anchor
 ;;
 
+module Draw_inputs = struct
+  type t =
+    { device_status : Renderer.Device_status.t
+    ; bridge_station : Citibike.Station.t
+    ; roebling_station : Citibike.Station.t
+    ; vesey_station : Citibike.Station.t
+    ; barclay_station : Citibike.Station.t
+    ; fulton_station : Citibike.Station.t
+    ; bedford_status : Mta_subway.Stop_status.t
+    ; marcy_status : Mta_subway.Stop_status.t
+    ; now : Time_ns.t
+    }
+end
+
 let draw
       ~font
-      ~citibike_stations
-      ~(mta_subway_status : Mta_subway.Status.t)
       ~device_status
+      ~bridge_station
+      ~roebling_station
+      ~vesey_station
+      ~barclay_station
+      ~fulton_station
+      ~bedford_status
+      ~marcy_status
       ~now
   =
-  let find_station = Map.find_or_error citibike_stations in
-  let%bind.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
-  and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
-  and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
-  and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
-  and fulton_station = find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
-  and bedford_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "L08"
-  and marcy_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16" in
   let open Drawing.O in
   (* Short geometry variable names keep the function legible. *)
   let w = 800
@@ -162,8 +176,10 @@ let draw
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:200 ~baseline_y:100 ~size:80. "weather here";
-  let map_top = h / 2
+  let map_height = h / 2
+  and brooklyn_height = 238
   and man_fade_height = 20 in
+  let map_top = h - map_height in
   let man_faded_top = map_top - man_fade_height in
   let north_fade fill =
     fade_to_white
@@ -187,7 +203,7 @@ let draw
     ]
   in
   let status_padding = 8
-  and available_bike_status_size = 120, 62 in
+  and available_bike_status_size = 100, 62 in
   let available_bike_status_width, _ = available_bike_status_size in
   let br_start =
     w
@@ -196,9 +212,15 @@ let draw
     - (3 * status_padding)
     - Stroke.safe_padding geo_stroke
   in
-  let br_foot = 50 in
+  let br_foot = 50
+  and brooklyn_corner_radius = 20 in
+  let brooklyn_top = h - brooklyn_height in
   let brooklyn_path =
-    [ w, map_top; br_start, map_top; br_start, h - br_foot; br_start - br_foot, h ]
+    [ w, brooklyn_top
+    ; br_start, brooklyn_top
+    ; br_start, h - br_foot
+    ; br_start - br_foot, h
+    ]
   in
   let water_fill (x, y) =
     let wave_x = (x + (y / 12 % 2 * 12)) % 24 in
@@ -207,15 +229,27 @@ let draw
     | true -> `b
     | false -> `w
   in
-  rect context ~fill:water_fill (0, map_top) (w, h);
+  let brooklyn_fill (x, y) =
+    let x_distance = x - (br_start + brooklyn_corner_radius)
+    and y_distance = y - (brooklyn_top + brooklyn_corner_radius) in
+    match
+      x < br_start + brooklyn_corner_radius
+      && y < brooklyn_top + brooklyn_corner_radius
+      && (x_distance * x_distance) + (y_distance * y_distance)
+         > brooklyn_corner_radius * brooklyn_corner_radius
+    with
+    | true -> water_fill (x, y)
+    | false -> land_fill (x, y)
+  in
+  rect context ~fill:water_fill (0, map_top) (br_start + 30, h);
   polygon context ~fill:(north_fade land_fill) manhattan_path;
-  polygon context ~fill:land_fill (brooklyn_path @ [ w, h ]);
+  polygon context ~fill:brooklyn_fill (brooklyn_path @ [ w, h ]);
   rounded_path
     context
     ~radius:20
     ~stroke:(Stroke.create (north_fade black) 8)
     manhattan_path;
-  rounded_path context ~radius:20 ~stroke:geo_stroke brooklyn_path;
+  rounded_path context ~radius:brooklyn_corner_radius ~stroke:geo_stroke brooklyn_path;
   let subway_stroke fill = Stroke.create ~casing:(Stroke.solid `w 12) fill 8 in
   let l_fill : Fill.t = Fill.bayer_exn ~white_frac:(9. /. 16.)
   and l_y = map_top + 30 in
@@ -297,7 +331,7 @@ let draw
   available_bike_status
     context
     ~font
-    ~title:"roebling"
+    ~title:"roeb"
     ~box_size:available_bike_status_size
     ~station:roebling_station
     (Anchor.Ur
@@ -305,7 +339,7 @@ let draw
   parking_status
     context
     ~font
-    ~title:"vesey"
+    ~title:"ves"
     ~station:vesey_station
     (Anchor.Ul
        ( man_padding + Stroke.safe_padding geo_stroke + status_padding
@@ -313,7 +347,7 @@ let draw
   parking_status
     context
     ~font
-    ~title:"barclay"
+    ~title:"barc"
     ~station:barclay_station
     (Anchor.Lr
        ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
@@ -321,27 +355,25 @@ let draw
   parking_status
     context
     ~font
-    ~title:"fulton"
+    ~title:"ful"
     ~station:fulton_station
     (Anchor.Ur
        (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
   let status_text =
-    let { Renderer.Device_status.percent_charged; usb_connected } = device_status in
-    let percent_charged = Float.iround_nearest_exn percent_charged in
-    [ Some [%string "%{percent_charged#Int}%"]
-    ; (match usb_connected, Int.equal percent_charged 100 with
-       | false, _ -> None
-       | true, true -> Some "(charged)"
-       | true, false -> Some "(charging)")
-    ; Some "/"
-    ; Some "updated"
-    ; Some
-        (Time_ns_unix.format
-           now
-           "%H:%M"
-           ~zone:(Time_ns_unix.Zone.find_exn "America/New_York"))
+    let voltage =
+      match device_status.Renderer.Device_status.battery_voltage with
+      | Some battery_voltage ->
+        [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
+      | None -> "voltage unknown"
+    in
+    [ voltage
+    ; "/"
+    ; "updated"
+    ; Time_ns_unix.format
+        now
+        "%H:%M"
+        ~zone:(Time_ns_unix.Zone.find_exn "America/New_York")
     ]
-    |> List.filter_opt
     |> String.concat ~sep:" "
   and status_text_size = 24.
   and status_text_padding = 8 in
@@ -359,50 +391,147 @@ let draw
     ~baseline_y:(h - status_text_padding)
     ~size:status_text_size
     status_text;
-  Ok image
+  image
 ;;
 
 type debug_preset = Dense
 
-let render input cache =
-  let device_status =
-    match input with
-    | Renderer.Input.Device (Some device_status) -> device_status
-    | Device None | Preview None ->
-      { Renderer.Device_status.percent_charged = 5.; usb_connected = false }
-    | Preview (Some Dense) ->
-      { Renderer.Device_status.percent_charged = 100.; usb_connected = true }
-  in
+let live_draw_inputs cache ~device_status ~now =
   let%bind citibike_result = Citibike.query cache
   and mta_subway_status_result =
     Mta_subway.query
       cache
       ~which_feeds:[ Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
-  and _weather_result =
-    Weather.query
-      cache
-      ~coordinates:{ Weather.Coordinates.latitude = 40.7084; longitude = -73.9578 }
   in
+  return
+    (let%bind.Or_error citibike_stations =
+       Latest_result.latest_success citibike_result
+       |> Or_error.map ~f:(fun completed -> completed.value)
+     and mta_subway_status = mta_subway_status_result in
+     let find_station = Map.find_or_error citibike_stations in
+     let%map.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+     and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
+     and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
+     and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
+     and fulton_station = find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
+     and bedford_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "L08"
+     and marcy_status =
+       Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16"
+     in
+     { Draw_inputs.device_status
+     ; bridge_station
+     ; roebling_station
+     ; vesey_station
+     ; barclay_station
+     ; fulton_station
+     ; bedford_status
+     ; marcy_status
+     ; now
+     })
+;;
+
+let render input cache =
+  let now = Time_ns.now () in
   let%bind.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
-  and citibike_stations =
-    Latest_result.latest_success citibike_result
-    |> Or_error.map ~f:(fun completed -> completed.value)
-    |> return
-  and mta_subway_status = mta_subway_status_result |> return in
-  let%map.Deferred.Or_error image =
-    draw ~font ~citibike_stations ~mta_subway_status ~device_status ~now:(Time_ns.now ())
-    |> return
   in
-  { Renderer.Render.buffer = image
-  ; time_until_refresh = Time_ns.Span.of_sec 30.
-  ; debug_info =
-      citibike_result
-      |> Latest_result.map ~f:(fun stations ->
-        Map.find stations "66dc8768-0aca-11e7-82f6-3863bb44ef7c")
-      |> Latest_result.sexp_of_t (Option.sexp_of_t Citibike.Station.sexp_of_t)
-      |> Sexp.to_string_hum
-  }
+  let%bind.Deferred.Or_error draw_inputs =
+    match input with
+    | Renderer.Input.Device device_status -> live_draw_inputs cache ~device_status ~now
+    | Preview None ->
+      live_draw_inputs
+        cache
+        ~device_status:{ Renderer.Device_status.battery_voltage = Some 4.1 }
+        ~now
+    | Preview (Some Dense) ->
+      let text_width number =
+        (Font.render_text font (Int.to_string number) ~size:40.).Font.Rendered_text.width
+      in
+      let widest_two_digit_number =
+        List.range 11 100
+        |> List.fold ~init:10 ~f:(fun widest number ->
+          match Int.compare (text_width number) (text_width widest) >= 0 with
+          | true -> number
+          | false -> widest)
+      in
+      let station =
+        { Citibike.Station.station_id = "dense"
+        ; name = "dense"
+        ; latitude = 0.
+        ; longitude = 0.
+        ; capacity = 3 * widest_two_digit_number
+        ; bikes_available = 2 * widest_two_digit_number
+        ; ebikes_available = widest_two_digit_number
+        ; bikes_disabled = 0
+        ; docks_available = widest_two_digit_number
+        ; docks_disabled = 0
+        ; is_installed = true
+        ; is_renting = true
+        ; is_returning = true
+        ; last_reported = now
+        }
+      in
+      let arrivals ~route_id ~stop_id =
+        [ "N"; "S" ]
+        |> List.concat_map ~f:(fun direction ->
+          List.init 3 ~f:(fun _ ->
+            { Mta_subway.Arrival.route_id
+            ; trip_id = None
+            ; stop_id = stop_id ^ direction
+            ; arrives_at =
+                Time_ns.add now (Time_ns.Span.of_int_min widest_two_digit_number)
+            }))
+      in
+      let bedford_status =
+        { Mta_subway.Stop_status.upcoming_arrivals = arrivals ~route_id:"L" ~stop_id:"L08"
+        ; alerts = []
+        }
+      and marcy_status =
+        { Mta_subway.Stop_status.upcoming_arrivals =
+            arrivals ~route_id:"J" ~stop_id:"M16" @ arrivals ~route_id:"M" ~stop_id:"M16"
+        ; alerts = []
+        }
+      in
+      return
+        (Ok
+           { Draw_inputs.device_status = { battery_voltage = None }
+           ; bridge_station = station
+           ; roebling_station = station
+           ; vesey_station = station
+           ; barclay_station = station
+           ; fulton_station = station
+           ; bedford_status
+           ; marcy_status
+           ; now
+           })
+  in
+  let { Draw_inputs.device_status
+      ; bridge_station
+      ; roebling_station
+      ; vesey_station
+      ; barclay_station
+      ; fulton_station
+      ; bedford_status
+      ; marcy_status
+      ; now
+      }
+    =
+    draw_inputs
+  in
+  let buffer =
+    draw
+      ~font
+      ~device_status
+      ~bridge_station
+      ~roebling_station
+      ~vesey_station
+      ~barclay_station
+      ~fulton_station
+      ~bedford_status
+      ~marcy_status
+      ~now
+  in
+  return (Ok { Renderer.Render.buffer; time_until_refresh = Time_ns.Span.of_sec 30. })
 ;;
 
 let renderer =

@@ -9,7 +9,7 @@ module Row = struct
     }
 end
 
-let width = 340
+let width = 361
 
 let draw_bullet
       context
@@ -57,8 +57,8 @@ let draw_directions
       ~center_y
       ~half_height
   =
-  let left, middle, right = columns context ~bullet_center_x ~bullet_radius ~padding
-  and stroke = Drawing.Stroke.solid `b 2 in
+  let left, middle, right = columns context ~bullet_center_x ~bullet_radius ~padding in
+  let stroke = Drawing.Stroke.solid `b 2 in
   let draw_arrow direction ~center_x =
     let tip_x, tail_x, arrowhead_x =
       match direction with

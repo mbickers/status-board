@@ -2,16 +2,12 @@ open! Core
 open! Async
 
 module Device_status = struct
-  type t =
-    { percent_charged : float
-    ; usb_connected : bool
-    }
-  [@@deriving sexp]
+  type t = { battery_voltage : float option } [@@deriving sexp]
 end
 
 module Input = struct
   type 'debug_preset t =
-    | Device of Device_status.t option
+    | Device of Device_status.t
     | Preview of 'debug_preset option
 end
 
@@ -19,7 +15,6 @@ module Render = struct
   type t =
     { buffer : Image.image
     ; time_until_refresh : Time_ns.Span.t
-    ; debug_info : string
     }
 end
 

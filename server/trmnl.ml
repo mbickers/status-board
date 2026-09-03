@@ -26,15 +26,12 @@ let request_origin request =
 
 let device_status request =
   let headers = Cohttp.Request.headers request in
-  match
-    Cohttp.Header.get headers "percent-charged", Cohttp.Header.get headers "usb-connected"
-  with
-  | Some percent_charged, Some usb_connected ->
-    let percent_charged = Or_error.try_with (fun () -> Float.of_string percent_charged)
-    and usb_connected = Or_error.try_with (fun () -> Int.of_string usb_connected <> 0) in
-    Or_error.map2 percent_charged usb_connected ~f:(fun percent_charged usb_connected ->
-      Some { Renderer.Device_status.percent_charged; usb_connected })
-  | None, _ | _, None -> Ok None
+  match Cohttp.Header.get headers "battery-voltage" with
+  | Some battery_voltage ->
+    Or_error.try_with (fun () -> Float.of_string battery_voltage)
+    |> Or_error.map ~f:(fun battery_voltage ->
+      { Renderer.Device_status.battery_voltage = Some battery_voltage })
+  | None -> Ok { Renderer.Device_status.battery_voltage = None }
 ;;
 
 let render_and_publish t ~request ~publish =
@@ -43,7 +40,7 @@ let render_and_publish t ~request ~publish =
     | Ok device_status -> device_status
     | Error error ->
       [%log.global.error "Invalid TRMNL device status" (error : Error.t)];
-      None
+      { Renderer.Device_status.battery_voltage = None }
   in
   let%bind screen_render = Renderer.render_device t.renderer device_status t.cache in
   return

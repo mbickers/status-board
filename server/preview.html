@@ -9,7 +9,6 @@
     .display { border: 1px solid #888; image-rendering: pixelated; }
     dt { font-weight: 600; margin-top: 1rem; }
     dd { margin-left: 0; }
-    pre { white-space: pre-wrap; }
   </style>
 </head>
 <body>
@@ -31,7 +30,6 @@
   <dl>
     <dt>Time until refresh</dt><dd>{{refresh_seconds}} seconds</dd>
     <dt>Display resolution</dt><dd>{{display_width_px}} × {{display_height_px}} pixels</dd>
-    <dt>Debug info</dt><dd><pre>{{debug_info}}</pre></dd>
   </dl>
   <script>
     setTimeout(() => window.location.reload(), {{refresh_milliseconds}});
