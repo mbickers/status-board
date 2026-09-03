@@ -13,6 +13,15 @@
   </style>
 </head>
 <body>
+  <form method="get">
+    <label for="preset">Debug preset</label>
+    <select id="preset" name="preset" onchange="this.form.submit()">
+      <option value=""{{#no_debug_preset_selected}} selected{{/no_debug_preset_selected}}>None</option>
+      {{#debug_presets}}
+      <option value="{{name}}"{{#selected}} selected{{/selected}}>{{name}}</option>
+      {{/debug_presets}}
+    </select>
+  </form>
   <img
     class="display"
     src="{{image_url}}"

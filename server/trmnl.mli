@@ -1,14 +1,13 @@
 open! Core
 open! Async
 
-type renderer = Cache.t -> Screen_render.t Deferred.Or_error.t
 type t
 
 val create
   :  cache:Cache.t
   -> image_publisher:Image_publisher.t
   -> name:string
-  -> renderer:renderer
+  -> renderer:Renderer.packed
   -> t
 
 val respond_setup

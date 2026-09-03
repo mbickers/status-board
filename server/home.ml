@@ -134,7 +134,13 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
     anchor
 ;;
 
-let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~now =
+let draw
+      ~font
+      ~citibike_stations
+      ~(mta_subway_status : Mta_subway.Status.t)
+      ~device_status
+      ~now
+  =
   let find_station = Map.find_or_error citibike_stations in
   let%bind.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
   and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
@@ -315,15 +321,28 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ~station:fulton_station
     (Anchor.Ur
        (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
-  let updated_text =
-    [%string
-      "last updated %{Time_ns_unix.format now \"%H:%M\" \
-       ~zone:(Time_ns_unix.Zone.find_exn \"America/New_York\")}"]
-  and updated_text_size = 24.
-  and updated_text_padding = 8 in
-  let rendered_updated_text =
-    Font.render_text font updated_text ~size:updated_text_size
-  in
+  let status_text =
+    let { Renderer.Device_status.percent_charged; usb_connected } = device_status in
+    let percent_charged = Float.iround_nearest_exn percent_charged in
+    [ Some [%string "%{percent_charged#Int}%"]
+    ; (if not usb_connected
+       then None
+       else if Int.equal percent_charged 100
+       then Some "(charged)"
+       else Some "(charging)")
+    ; Some "/"
+    ; Some "updated"
+    ; Some
+        (Time_ns_unix.format
+           now
+           "%H:%M"
+           ~zone:(Time_ns_unix.Zone.find_exn "America/New_York"))
+    ]
+    |> List.filter_opt
+    |> String.concat ~sep:" "
+  and status_text_size = 24.
+  and status_text_padding = 8 in
+  let rendered_status_text = Font.render_text font status_text ~size:status_text_size in
   text
     ~halo:(2, Fill.solid `w)
     context
@@ -331,16 +350,26 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
     ~fill:black
     ~origin_x:
       (w
-       - updated_text_padding
-       - rendered_updated_text.width
-       + rendered_updated_text.origin_x)
-    ~baseline_y:(h - updated_text_padding)
-    ~size:updated_text_size
-    updated_text;
+       - status_text_padding
+       - rendered_status_text.width
+       + rendered_status_text.origin_x)
+    ~baseline_y:(h - status_text_padding)
+    ~size:status_text_size
+    status_text;
   Ok image
 ;;
 
-let render cache =
+type debug_preset = Dense
+
+let render input cache =
+  let device_status =
+    match input with
+    | Renderer.Input.Device (Some device_status) -> device_status
+    | Device None | Preview None ->
+      { Renderer.Device_status.percent_charged = 5.; usb_connected = false }
+    | Preview (Some Dense) ->
+      { Renderer.Device_status.percent_charged = 100.; usb_connected = true }
+  in
   let%bind citibike_result = Citibike.query cache
   and mta_subway_status_result =
     Mta_subway.query
@@ -359,9 +388,10 @@ let render cache =
     |> return
   and mta_subway_status = mta_subway_status_result |> return in
   let%map.Deferred.Or_error image =
-    draw ~font ~citibike_stations ~mta_subway_status ~now:(Time_ns.now ()) |> return
+    draw ~font ~citibike_stations ~mta_subway_status ~device_status ~now:(Time_ns.now ())
+    |> return
   in
-  { Screen_render.buffer = image
+  { Renderer.Render.buffer = image
   ; time_until_refresh = Time_ns.Span.of_sec 30.
   ; debug_info =
       citibike_result
@@ -369,5 +399,12 @@ let render cache =
         Map.find stations "66dc8768-0aca-11e7-82f6-3863bb44ef7c")
       |> Latest_result.sexp_of_t (Option.sexp_of_t Citibike.Station.sexp_of_t)
       |> Sexp.to_string_hum
+  }
+;;
+
+let renderer =
+  { Renderer.debug_presets = [ Dense ]
+  ; debug_preset_name = (fun Dense -> "dense")
+  ; render
   }
 ;;

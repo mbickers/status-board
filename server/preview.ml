@@ -1,13 +1,11 @@
 open! Core
 open! Async
 
-type renderer = Cache.t -> Screen_render.t Deferred.Or_error.t
-
 type t =
   { autoreload_script : string
   ; cache : Cache.t
   ; image_publisher : Image_publisher.t
-  ; renderers : renderer String.Map.t
+  ; renderers : Renderer.packed String.Map.t
   ; template : Mustache.t
   }
 
@@ -19,9 +17,9 @@ let create ~autoreload_script ~cache ~image_publisher ~renderers =
   { autoreload_script; cache; image_publisher; renderers; template }
 ;;
 
-let page_html t ~image_url screen_render =
+let page_html t ~image_url ~debug_preset ~debug_preset_names screen_render =
   let refresh_seconds =
-    Time_ns.Span.to_sec screen_render.Screen_render.time_until_refresh
+    Time_ns.Span.to_sec screen_render.Renderer.Render.time_until_refresh
   in
   let template_data =
     `O
@@ -34,21 +32,35 @@ let page_html t ~image_url screen_render =
       ; "display_height_px", `String (Int.to_string screen_render.buffer.height)
       ; "debug_info", `String screen_render.debug_info
       ; "autoreload_script", `String t.autoreload_script
+      ; "no_debug_preset_selected", `Bool (Option.is_none debug_preset)
+      ; ( "debug_presets"
+        , `A
+            (List.map debug_preset_names ~f:(fun name ->
+               `O
+                 [ "name", `String name
+                 ; "selected", `Bool (Option.equal String.equal debug_preset (Some name))
+                 ])) )
       ]
   in
   Or_error.try_with (fun () -> Mustache.render t.template template_data)
 ;;
 
-let respond t ~name =
+let respond t ~request ~name =
   match Map.find t.renderers name with
   | Some renderer ->
-    let%bind screen_render = renderer t.cache in
+    let debug_preset = Uri.get_query_param (Cohttp.Request.uri request) "preset" in
+    let%bind screen_render = Renderer.render_preview renderer ~debug_preset t.cache in
     let html =
       let%bind.Or_error screen_render = screen_render in
       let { Image_publisher.Publish_record.image_url; filename = _ } =
         Image_publisher.publish t.image_publisher ~name ~buffer:screen_render.buffer
       in
-      page_html t ~image_url screen_render
+      page_html
+        t
+        ~image_url
+        ~debug_preset
+        ~debug_preset_names:(Renderer.debug_preset_names renderer)
+        screen_render
     in
     (match html with
      | Ok html ->

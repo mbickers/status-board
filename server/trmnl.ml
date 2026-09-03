@@ -1,13 +1,11 @@
 open! Core
 open! Async
 
-type renderer = Cache.t -> Screen_render.t Deferred.Or_error.t
-
 type t =
   { cache : Cache.t
   ; image_publisher : Image_publisher.t
   ; name : string
-  ; renderer : renderer
+  ; renderer : Renderer.packed
   }
 
 let create ~cache ~image_publisher ~name ~renderer =
@@ -26,8 +24,28 @@ let request_origin request =
   | None, None -> Or_error.error_string "Request has no Host header"
 ;;
 
+let device_status request =
+  let headers = Cohttp.Request.headers request in
+  match
+    Cohttp.Header.get headers "percent-charged", Cohttp.Header.get headers "usb-connected"
+  with
+  | Some percent_charged, Some usb_connected ->
+    let percent_charged = Or_error.try_with (fun () -> Float.of_string percent_charged)
+    and usb_connected = Or_error.try_with (fun () -> Int.of_string usb_connected <> 0) in
+    Or_error.map2 percent_charged usb_connected ~f:(fun percent_charged usb_connected ->
+      Some { Renderer.Device_status.percent_charged; usb_connected })
+  | None, _ | _, None -> Ok None
+;;
+
 let render_and_publish t ~request ~publish =
-  let%bind screen_render = t.renderer t.cache in
+  let device_status =
+    match device_status request with
+    | Ok device_status -> device_status
+    | Error error ->
+      [%log.global.error "Invalid TRMNL device status" (error : Error.t)];
+      None
+  in
+  let%bind screen_render = Renderer.render_device t.renderer device_status t.cache in
   return
     (let%bind.Or_error screen_render = screen_render in
      let%bind.Or_error origin = request_origin request in

@@ -5,13 +5,14 @@ let run ~cache_path ~port =
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
   let image_publisher = Image_publisher.create () in
   let cache = Cache.create ~path:cache_path in
-  let trmnl = Trmnl.create ~cache ~image_publisher ~name:"home" ~renderer:Home.render in
+  let home_renderer = Renderer.Pack Home.renderer in
+  let trmnl = Trmnl.create ~cache ~image_publisher ~name:"home" ~renderer:home_renderer in
   let%bind.Deferred.Or_error preview_handler =
     Preview.create
       ~autoreload_script:(Autoreload_on_restart.script autoreload)
       ~cache
       ~image_publisher
-      ~renderers:(String.Map.of_alist_exn [ "home", Home.render ])
+      ~renderers:(String.Map.of_alist_exn [ "home", home_renderer ])
     |> return
   in
   let%bind _server =
@@ -29,21 +30,15 @@ let run ~cache_path ~port =
            |> String.split ~on:'/'
          in
          (match path with
-          | "api" :: _ | "image" :: _ | "setup-image" :: _ ->
-            let headers = Cohttp.Request.headers request in
+          | "api" :: _ ->
             let request_method = Cohttp.Code.string_of_method method_
-            and firmware_version = Cohttp.Header.get headers "fw-version"
-            and model = Cohttp.Header.get headers "model"
-            and width = Cohttp.Header.get headers "width"
-            and height = Cohttp.Header.get headers "height" in
+            and uri = Cohttp.Request.uri request |> Uri.to_string
+            and headers = Cohttp.Request.headers request |> Cohttp.Header.to_list in
             [%log.global.info
               "TRMNL request"
                 (request_method : string)
-                (path : string list)
-                (firmware_version : string option)
-                (model : string option)
-                (width : string option)
-                (height : string option)]
+                (uri : string)
+                (headers : (string * string) list)]
           | _ -> ());
          match method_, path with
          | `GET, path
@@ -52,7 +47,7 @@ let run ~cache_path ~port =
                   path
                   (Autoreload_on_restart.monitor_path autoreload) ->
            Autoreload_on_restart.respond autoreload request
-         | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~name
+         | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~request ~name
          | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
          | `GET, [ "setup-image"; name ] ->
            Image_publisher.respond_setup_image image_publisher ~name
