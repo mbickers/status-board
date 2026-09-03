@@ -139,8 +139,8 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
   let%bind.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
   and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
   and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
-  and park_station = find_station "18fcd2c1-dc8b-4a52-9f18-e9b9003bbea5"
   and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
+  and fulton_station = find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
   and bedford_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "L08"
   and marcy_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16" in
   let open Drawing.O in
@@ -295,7 +295,7 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
   parking_status
     context
     ~font
-    ~title:"ves"
+    ~title:"vesey"
     ~station:vesey_station
     (Anchor.Ul
        ( man_padding + Stroke.safe_padding geo_stroke + status_padding
@@ -303,16 +303,16 @@ let draw ~font ~citibike_stations ~(mta_subway_status : Mta_subway.Status.t) ~no
   parking_status
     context
     ~font
-    ~title:"park"
-    ~station:park_station
+    ~title:"barclay"
+    ~station:barclay_station
     (Anchor.Lr
        ( j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2)
        , j_y - status_padding ));
   parking_status
     context
     ~font
-    ~title:"barc"
-    ~station:barclay_station
+    ~title:"fulton"
+    ~station:fulton_station
     (Anchor.Ur
        (j_x - Stroke.safe_padding (subway_stroke black) - (status_padding / 2), j_y));
   let updated_text =

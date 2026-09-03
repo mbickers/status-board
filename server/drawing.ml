@@ -380,12 +380,12 @@ let status_box
   let title_size = 17. in
   let rendered_title = Font.render_text font title ~size:title_size in
   text
-    ~halo:(2, Fill.solid `w)
+    ~halo:(3, Fill.solid `w)
     context
     ~font
     ~fill:(Fill.solid `b)
-    ~origin_x:(left + radius + 5 + rendered_title.origin_x)
-    ~baseline_y:(top - 3 + rendered_title.baseline_y)
+    ~origin_x:(left + radius + 2 + rendered_title.origin_x)
+    ~baseline_y:(top - 2 + rendered_title.baseline_y)
     ~size:title_size
     title
 ;;
