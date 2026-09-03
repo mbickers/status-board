@@ -38,6 +38,15 @@ module Stroke : sig
 end
 
 val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
+
+module Path_resolver_step : sig
+  type t =
+    | Point of int * int
+    | Offset of int * int
+
+  val resolve : t list -> (int * int) list
+end
+
 val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
 val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
 
@@ -74,6 +83,7 @@ module O : sig
   module Context = Context
   module Anchor = Anchor
   module Fill = Fill
+  module Path_resolver_step = Path_resolver_step
   module Stroke = Stroke
 
   val solid : [ `b | `w ] -> Fill.t

@@ -191,16 +191,17 @@ let draw
   and man_padding = 10
   and man_inset = 50 in
   let manhattan_path =
-    [ man_padding, man_faded_top
-    ; man_padding, h - man_padding - man_inset
-    ; man_padding + man_inset, h - man_padding
-    ; man_w - man_inset, h - man_padding
-    ; man_w, h - man_padding - man_inset
-    ; man_w, map_top + man_inset + 20
-    ; man_w - man_inset, map_top + 20
-    ; man_w - man_inset, map_top
-    ; man_w - man_inset, man_faded_top
-    ]
+    Path_resolver_step.resolve
+      [ Path_resolver_step.Point (man_padding, man_faded_top)
+      ; Point (man_padding, h - man_padding - man_inset)
+      ; Offset (man_inset, man_inset)
+      ; Point (man_w - man_inset, h - man_padding)
+      ; Offset (man_inset, -man_inset)
+      ; Point (man_w, map_top + man_inset + 20)
+      ; Offset (-man_inset, -man_inset)
+      ; Offset (0, -20)
+      ; Point (man_w - man_inset, man_faded_top)
+      ]
   in
   let status_padding = 8
   and available_bike_status_size = 100, 62 in
