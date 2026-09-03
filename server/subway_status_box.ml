@@ -23,10 +23,12 @@ let draw_bullet
   =
   for y = center_y - radius to center_y + radius do
     for x = center_x - radius to center_x + radius do
-      if
+      match
         ((x - center_x) * (x - center_x)) + ((y - center_y) * (y - center_y))
         <= radius * radius
-      then Drawing.Context.write context (x, y) (fill (x, y))
+      with
+      | true -> Drawing.Context.write context (x, y) (fill (x, y))
+      | false -> ()
     done
   done;
   let rendered_text = Font.render_text font label ~size:font_size in
@@ -98,12 +100,13 @@ let draw_row
     let minutes =
       List.filter_map stop_status.upcoming_arrivals ~f:(fun arrival ->
         let time_until_arrival = Time_ns.diff arrival.arrives_at now in
-        if
+        match
           List.mem row.route_ids arrival.route_id ~equal:String.equal
           && String.is_suffix arrival.stop_id ~suffix:direction
           && Time_ns.Span.compare time_until_arrival minimum_time_until_arrival > 0
-        then Some (Time_ns.Span.to_min time_until_arrival |> Float.iround_up_exn)
-        else None)
+        with
+        | true -> Some (Time_ns.Span.to_min time_until_arrival |> Float.iround_up_exn)
+        | false -> None)
     in
     List.take minutes 3
     |> List.map ~f:Int.to_string
@@ -113,7 +116,9 @@ let draw_row
   in
   let label, fill = row.bullet in
   let eastbound_direction =
-    if String.equal row.westbound_mta_direction "N" then "S" else "N"
+    match String.equal row.westbound_mta_direction "N" with
+    | true -> "S"
+    | false -> "N"
   and bullet_text_fill = Drawing.Fill.solid `w
   and text_left, text_middle, text_right =
     columns context ~bullet_center_x ~bullet_radius ~padding

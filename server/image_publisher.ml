@@ -61,14 +61,15 @@ let bmp image =
     let image_y = image.height - output_y - 1 in
     for x = 0 to image.width - 1 do
       Image.read_grey image x image_y (fun grey ->
-        if grey <> 0
-        then (
+        match grey <> 0 with
+        | true ->
           let byte_index = header_size + (output_y * row_size) + (x / 8) in
           Bytes.set
             result
             byte_index
             (Char.to_int (Bytes.get result byte_index) lor (0x80 lsr (x mod 8))
-             |> Char.of_int_exn)))
+             |> Char.of_int_exn)
+        | false -> ())
     done
   done;
   Bytes.to_string result

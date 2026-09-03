@@ -21,21 +21,23 @@ module Context = struct
 
   let write t (x, y) color =
     let width, height = t.size in
-    if x >= 0 && y >= 0 && x < width && y < height
-    then (
+    match x >= 0 && y >= 0 && x < width && y < height with
+    | true ->
       let offset_x, offset_y = t.offset
       and image = t.image in
       let x = x + offset_x
       and y = y + offset_y in
-      if x >= 0 && y >= 0 && x < image.width && y < image.height
-      then
-        Image.write_grey
-          image
-          x
-          y
-          (match color with
-           | `b -> 0
-           | `w -> 1))
+      (match x >= 0 && y >= 0 && x < image.width && y < image.height with
+       | true ->
+         Image.write_grey
+           image
+           x
+           y
+           (match color with
+            | `b -> 0
+            | `w -> 1)
+       | false -> ())
+    | false -> ()
   ;;
 end
 
@@ -86,7 +88,9 @@ module Fill = struct
 
   let tile_index ~size coordinate =
     let index = coordinate % size in
-    if index < 0 then index + size else index
+    match index < 0 with
+    | true -> index + size
+    | false -> index
   ;;
 
   let bayer_threshold ~size =
@@ -97,29 +101,31 @@ module Fill = struct
   ;;
 
   let bayer_exn ?(size = 4) ?(offset = 0, 0) ~white_frac =
-    if size <= 0 || size land (size - 1) <> 0
-    then invalid_arg "Bayer matrix size must be a positive power of two";
+    (match size <= 0 || size land (size - 1) <> 0 with
+     | true -> invalid_arg "Bayer matrix size must be a positive power of two"
+     | false -> ());
     let threshold = bayer_threshold ~size in
     let offset_x, offset_y = offset in
     fun (x, y) ->
-      if Float.compare (threshold (x + offset_x, y + offset_y)) white_frac >= 0
-      then `b
-      else `w
+      match Float.compare (threshold (x + offset_x, y + offset_y)) white_frac >= 0 with
+      | true -> `b
+      | false -> `w
   ;;
 
   let fade_to_white fill ~white_frac =
     let threshold = bayer_threshold ~size:16 in
     fun ((x, y) as point) ->
-      if Float.compare (threshold (x, y)) (white_frac point) >= 0 then fill point else `w
+      match Float.compare (threshold (x, y)) (white_frac point) >= 0 with
+      | true -> fill point
+      | false -> `w
   ;;
 
   let fractional ~frac ~frontier_angle_degrees context =
     let width, height = Context.size context in
-    if Float.compare frac 0. <= 0
-    then solid `w
-    else if Float.compare frac 1. >= 0
-    then solid `b
-    else (
+    match Float.compare frac 0. <= 0, Float.compare frac 1. >= 0 with
+    | true, _ -> solid `w
+    | false, true -> solid `b
+    | false, false ->
       let frontier_slope = Float.tan (frontier_angle_degrees *. Float.pi /. 180.) in
       fun (x, y) ->
         let frontier_at_center = Float.of_int width *. frac in
@@ -127,7 +133,9 @@ module Fill = struct
           frontier_at_center
           +. ((Float.of_int y -. (Float.of_int height /. 2.)) *. frontier_slope)
         in
-        if Float.compare (Float.of_int x) frontier < 0 then `b else `w)
+        (match Float.compare (Float.of_int x) frontier < 0 with
+         | true -> `b
+         | false -> `w)
   ;;
 end
 
@@ -169,13 +177,13 @@ let polygon context ~fill points =
     for y = min_y to max_y - 1 do
       edges points
       |> List.filter_map ~f:(fun ((x1, y1), (x2, y2)) ->
-        if (y1 <= y && y < y2) || (y2 <= y && y < y1)
-        then
+        match (y1 <= y && y < y2) || (y2 <= y && y < y1) with
+        | true ->
           Some
             (Float.of_int x1
              +. (Float.of_int (y - y1) *. Float.of_int (x2 - x1) /. Float.of_int (y2 - y1))
             )
-        else None)
+        | false -> None)
       |> List.sort ~compare:Float.compare
       |> fun intersections ->
       let rec fill_between_intersections = function
@@ -209,11 +217,13 @@ let draw_stroke_point context ~stroke (center_x, center_y) =
     do
       let x_distance = Float.of_int x -. center_x
       and y_distance = Float.of_int y -. center_y in
-      if
+      match
         Float.O.(
           (x_distance * x_distance) + (y_distance * y_distance)
           <= stroke_radius * stroke_radius)
-      then Context.write context (x, y) (stroke.fill (x, y))
+      with
+      | true -> Context.write context (x, y) (stroke.fill (x, y))
+      | false -> ()
     done
   done
 ;;
@@ -277,9 +287,9 @@ let rounded_corner_tangent_points ~radius ~previous ((vertex_x, vertex_y) as ver
       (Float.min (previous_length /. 2.) (next_length /. 2.))
   in
   let tangent_point (x, y) length =
-    if Float.equal length 0.
-    then vertex
-    else
+    match Float.equal length 0. with
+    | true -> vertex
+    | false ->
       ( vertex_x +. ((x -. vertex_x) *. corner_length /. length)
       , vertex_y +. ((y -. vertex_y) *. corner_length /. length) )
   in
@@ -313,11 +323,14 @@ let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   let iter_black_pixels ~f =
     for y = 0 to rendered_text.height - 1 do
       for x = 0 to rendered_text.width - 1 do
-        if Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
-        then
+        match
+          Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x) >= 128
+        with
+        | true ->
           f
             ( origin_x - rendered_text.origin_x + x
             , baseline_y - rendered_text.baseline_y + y )
+        | false -> ()
       done
     done
   in
@@ -325,10 +338,11 @@ let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
     iter_black_pixels ~f:(fun (x, y) ->
       for dy = -distance to distance do
         for dx = -distance to distance do
-          if (dx * dx) + (dy * dy) <= distance * distance
-          then (
+          match (dx * dx) + (dy * dy) <= distance * distance with
+          | true ->
             let point = x + dx, y + dy in
-            Context.write context point (halo_fill point))
+            Context.write context point (halo_fill point)
+          | false -> ()
         done
       done));
   iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
@@ -364,8 +378,9 @@ let status_box
   let iter_pixels ~f =
     for y = top to bottom - 1 do
       for x = left to right - 1 do
-        if inside ~inset:0 (x, y)
-        then f (x, y) ~is_interior:(inside ~inset:stroke.width (x, y))
+        match inside ~inset:0 (x, y) with
+        | true -> f (x, y) ~is_interior:(inside ~inset:stroke.width (x, y))
+        | false -> ()
       done
     done
   in
@@ -373,10 +388,14 @@ let status_box
     Context.write
       context
       point
-      (if is_interior then fill (x - left, y - top) else stroke.fill point));
+      (match is_interior with
+       | true -> fill (x - left, y - top)
+       | false -> stroke.fill point));
   f box_context ~fill;
   iter_pixels ~f:(fun point ~is_interior ->
-    if not is_interior then Context.write context point (stroke.fill point));
+    match is_interior with
+    | true -> ()
+    | false -> Context.write context point (stroke.fill point));
   let title_size = 17. in
   let rendered_title = Font.render_text font title ~size:title_size in
   text

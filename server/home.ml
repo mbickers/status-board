@@ -27,9 +27,9 @@ let availability_status
     station.capacity - station.bikes_disabled - station.docks_disabled
   in
   let frac =
-    if usable_capacity <= 0
-    then 0.
-    else Float.of_int station.bikes_available /. Float.of_int usable_capacity
+    match usable_capacity <= 0 with
+    | true -> 0.
+    | false -> Float.of_int station.bikes_available /. Float.of_int usable_capacity
   in
   Drawing.status_box
     context
@@ -60,8 +60,8 @@ let available_bike_status
       let fill = Drawing.Fill.invert fill
       and count_size = 40.
       and baseline_y = height - 12 in
-      if station.is_renting
-      then (
+      match station.is_renting with
+      | true ->
         let middle = width / 2 in
         let bikes_available = station.bikes_available - station.ebikes_available
         and ebikes_available = Int.to_string station.ebikes_available in
@@ -99,8 +99,8 @@ let available_bike_status
              + rendered_ebike_label.baseline_y)
           ~left:middle
           ~right:width
-          "e")
-      else
+          "e"
+      | false ->
         draw_centered_text
           context
           ~font
@@ -130,7 +130,9 @@ let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
         ~baseline_y:(height - 12)
         ~left:0
         ~right:width
-        (if station.is_returning then Int.to_string station.docks_available else "off"))
+        (match station.is_returning with
+         | true -> Int.to_string station.docks_available
+         | false -> "off"))
     anchor
 ;;
 
@@ -201,7 +203,9 @@ let draw
   let water_fill (x, y) =
     let wave_x = (x + (y / 12 % 2 * 12)) % 24 in
     let distance_from_center = Int.abs (wave_x - 12) in
-    if y % 12 = 5 - (distance_from_center * distance_from_center / 48) then `b else `w
+    match y % 12 = 5 - (distance_from_center * distance_from_center / 48) with
+    | true -> `b
+    | false -> `w
   in
   rect context ~fill:water_fill (0, map_top) (w, h);
   polygon context ~fill:(north_fade land_fill) manhattan_path;
@@ -325,11 +329,10 @@ let draw
     let { Renderer.Device_status.percent_charged; usb_connected } = device_status in
     let percent_charged = Float.iround_nearest_exn percent_charged in
     [ Some [%string "%{percent_charged#Int}%"]
-    ; (if not usb_connected
-       then None
-       else if Int.equal percent_charged 100
-       then Some "(charged)"
-       else Some "(charging)")
+    ; (match usb_connected, Int.equal percent_charged 100 with
+       | false, _ -> None
+       | true, true -> Some "(charged)"
+       | true, false -> Some "(charging)")
     ; Some "/"
     ; Some "updated"
     ; Some

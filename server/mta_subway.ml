@@ -81,9 +81,9 @@ let arrival
   match trip.route_id, stop_time_update.stop_id, stop_time_update.arrival with
   | Some route_id, Some stop_id, Some { time = Some arrival_time; _ } ->
     Or_error.map (time_ns_of_seconds_since_epoch arrival_time) ~f:(fun arrives_at ->
-      if Time_ns.compare arrives_at now < 0
-      then None
-      else
+      match Time_ns.compare arrives_at now < 0 with
+      | true -> None
+      | false ->
         Some
           ( station_id_of_stop_id stop_id
           , { Arrival.route_id; trip_id = trip.trip_id; stop_id; arrives_at } ))

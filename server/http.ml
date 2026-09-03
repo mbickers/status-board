@@ -12,9 +12,10 @@ let get_body url =
     Deferred.Or_error.try_with (fun () -> Cohttp_async.Body.to_string body)
   in
   let status_code = response |> Cohttp.Response.status |> Cohttp.Code.code_of_status in
-  if Cohttp.Code.is_success status_code
-  then return (Ok contents)
-  else Deferred.Or_error.errorf "GET %s failed with HTTP %d: %s" url status_code contents
+  match Cohttp.Code.is_success status_code with
+  | true -> return (Ok contents)
+  | false ->
+    Deferred.Or_error.errorf "GET %s failed with HTTP %d: %s" url status_code contents
 ;;
 
 let respond_string ?headers ?status body =
