@@ -4,7 +4,6 @@ task.source_freshness_hash_contents = true
 [tools]
 opam = "2.5.2"
 protoc = "36.0"
-watchexec = "2.5.1"
 
 [tasks.bootstrap]
 sources = ["mise.toml"]
@@ -109,26 +108,10 @@ depends = ["deps", "schemas"]
 run = "opam exec -- dune build --watch server/bin/main.exe @runtest"
 
 [tasks.dev]
-depends = ["dev:server", "dev:test"]
-
-[tasks."dev:prepare"]
 depends = ["deps", "schemas"]
-sources = ["server/**/*.ml", "server/**/*.mli", "server/**/*.proto", "server/**/*.html", "server/**/dune", "server/mta_protobuf/schemas.lock", "dune-project"]
-outputs = ["_build/default/server/bin/main.exe", "_build/server_tests_passed"]
-run = "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
-
-[tasks."dev:server"]
-depends = ["dev:prepare"]
-run = "opam exec -- watchexec --restart --watch _build/server_tests_passed -- _build/default/server/bin/main.exe -cache-path _cache -port 8080"
-
-[tasks."dev:test"]
-depends = ["dev:prepare"]
+# Keep the watch process's Dune lock separate so normal builds can run concurrently.
 run = '''
-opam exec -- watchexec \
-  --restart \
-  --postpone \
-  --watch server \
-  --watch dune-project \
-  --watch status_board.opam \
-  -- "opam exec -- dune build server/bin/main.exe @runtest && touch _build/server_tests_passed"
+opam exec -- dune exec --watch --build-dir=_build_dev server/bin/main.exe -- \
+  -cache-path _cache \
+  -port 8080
 '''
