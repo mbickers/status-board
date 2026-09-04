@@ -14,7 +14,7 @@ val width : int
 val draw
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
-  -> font:Font.t
+  -> styling:Drawing.Status_box_styling.t
   -> title:string
   -> now:Time_ns.t
   -> stop_status:Mta_subway.Stop_status.t

@@ -364,12 +364,30 @@ let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
 ;;
 
+module Status_box_styling = struct
+  type t =
+    { font : Font.t
+    ; horizontal_padding : int
+    ; baseline_padding : int
+    ; primary_font_size : float
+    }
+
+  let create ~font ~horizontal_padding ~baseline_padding ~primary_font_size =
+    { font; horizontal_padding; baseline_padding; primary_font_size }
+  ;;
+
+  let font t = t.font
+  let horizontal_padding t = t.horizontal_padding
+  let baseline_padding t = t.baseline_padding
+  let primary_font_size t = t.primary_font_size
+end
+
 let status_box
       ?(fill = fun _ -> Fill.solid `w)
       context
       (left, top)
       (right, bottom)
-      ~font
+      ~styling
       ~title
       ~f
   =
@@ -412,8 +430,9 @@ let status_box
     match is_interior with
     | true -> ()
     | false -> Context.write context point (stroke.fill point));
-  let title_size = 17. in
-  let rendered_title = Font.render_text font title ~size:title_size in
+  let font = Status_box_styling.font styling
+  and title_font_size = 17. in
+  let rendered_title = Font.render_text font title ~size:title_font_size in
   text
     ~halo:(3, Fill.solid `w)
     context
@@ -421,7 +440,7 @@ let status_box
     ~fill:(Fill.solid `b)
     ~origin_x:(left + radius + 2 + rendered_title.origin_x)
     ~baseline_y:(top - 2 + rendered_title.baseline_y)
-    ~size:title_size
+    ~size:title_font_size
     title
 ;;
 
@@ -430,6 +449,7 @@ module O = struct
   module Anchor = Anchor
   module Fill = Fill
   module Path_resolver_step = Path_resolver_step
+  module Status_box_styling = Status_box_styling
   module Stroke = Stroke
 
   let solid = Fill.solid

@@ -154,12 +154,13 @@ let draw_row
     ~right:text_right
 ;;
 
-let draw context ~anchor ~font ~title ~now ~stop_status ~rows =
-  let padding = 8
+let draw context ~anchor ~styling ~title ~now ~stop_status ~rows =
+  let font = Drawing.Status_box_styling.font styling in
+  let padding = Drawing.Status_box_styling.horizontal_padding styling
   and bullet_radius = 20
   and arrow_half_height = 6.
   and bullet_font_size = 35.
-  and departure_font_size = 40. in
+  and departure_font_size = Drawing.Status_box_styling.primary_font_size styling in
   let bullet_center_x = padding + bullet_radius
   and arrow_center_y = Float.of_int padding +. arrow_half_height
   and departure_line_height =
@@ -183,7 +184,7 @@ let draw context ~anchor ~font ~title ~now ~stop_status ~rows =
     context
     upper_left
     lower_right
-    ~font
+    ~styling
     ~title
     ~f:(fun context ~fill:_ ->
       draw_directions

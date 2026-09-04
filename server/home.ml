@@ -15,7 +15,7 @@ let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
 
 let availability_status
       context
-      ~font
+      ~styling
       ~title
       ~box_size
       ~(station : Citibike.Station.t)
@@ -35,7 +35,7 @@ let availability_status
     context
     upper_left
     lower_right
-    ~font
+    ~styling
     ~title
     ~fill:(Drawing.Fill.fractional ~frac ~frontier_angle_degrees:15.)
     ~f
@@ -43,25 +43,26 @@ let availability_status
 
 let available_bike_status
       context
-      ~font
+      ~styling
       ~title
       ~box_size
       ~(station : Citibike.Station.t)
       anchor
   =
+  let font = Drawing.Status_box_styling.font styling in
   availability_status
     context
-    ~font
+    ~styling
     ~title
     ~box_size
     ~station
     ~f:(fun context ~fill ->
       let width, height = Drawing.Context.size context in
       let fill = Drawing.Fill.invert fill
-      and count_size = 40.
-      and baseline_y = height - 12
-      and horizontal_padding = 2 in
-      let left = horizontal_padding
+      and count_size = Drawing.Status_box_styling.primary_font_size styling
+      and horizontal_padding = Drawing.Status_box_styling.horizontal_padding styling in
+      let baseline_y = height - Drawing.Status_box_styling.baseline_padding styling
+      and left = horizontal_padding
       and right = width - horizontal_padding in
       match station.is_renting with
       | true ->
@@ -116,23 +117,25 @@ let available_bike_status
     anchor
 ;;
 
-let parking_status context ~font ~title ~(station : Citibike.Station.t) anchor =
+let parking_status context ~styling ~title ~(station : Citibike.Station.t) anchor =
+  let font = Drawing.Status_box_styling.font styling in
   availability_status
     context
-    ~font
+    ~styling
     ~title
     ~box_size:(71, 55)
     ~station
     ~f:(fun context ~fill ->
       let width, height = Drawing.Context.size context in
+      let horizontal_padding = Drawing.Status_box_styling.horizontal_padding styling in
       draw_centered_text
         context
         ~font
         ~fill:(Drawing.Fill.invert fill)
-        ~size:40.
-        ~baseline_y:(height - 12)
-        ~left:0
-        ~right:width
+        ~size:(Drawing.Status_box_styling.primary_font_size styling)
+        ~baseline_y:(height - Drawing.Status_box_styling.baseline_padding styling)
+        ~left:horizontal_padding
+        ~right:(width - horizontal_padding)
         (match station.is_returning with
          | true -> Int.to_string station.docks_available
          | false -> "off"))
@@ -154,7 +157,7 @@ module Draw_inputs = struct
 end
 
 let draw
-      ~font
+      ~status_box_styling
       ~device_status
       ~bridge_station
       ~roebling_station
@@ -166,6 +169,7 @@ let draw
       ~now
   =
   let open Drawing.O in
+  let font = Status_box_styling.font status_box_styling in
   (* Short geometry variable names keep the function legible. *)
   let w = 800
   and h = 480 in
@@ -288,7 +292,7 @@ let draw
     Subway_status_box.draw
       context
       ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
-      ~font
+      ~styling:status_box_styling
       ~title:"bedford"
       ~now
       ~stop_status:bedford_status
@@ -303,7 +307,7 @@ let draw
   Subway_status_box.draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, bedford_status_bottom + status_padding))
-    ~font
+    ~styling:status_box_styling
     ~title:"marcy"
     ~now
     ~stop_status:marcy_status
@@ -323,7 +327,7 @@ let draw
   let bike_status_rx = subway_status_left - status_padding in
   available_bike_status
     context
-    ~font
+    ~styling:status_box_styling
     ~title:"bridge"
     ~box_size:available_bike_status_size
     ~station:bridge_station
@@ -331,7 +335,7 @@ let draw
        (bike_status_rx, m_y - status_padding - Stroke.safe_padding (subway_stroke black)));
   available_bike_status
     context
-    ~font
+    ~styling:status_box_styling
     ~title:"roeb"
     ~box_size:available_bike_status_size
     ~station:roebling_station
@@ -339,7 +343,7 @@ let draw
        (bike_status_rx, j_y + Stroke.safe_padding (subway_stroke black) + status_padding));
   parking_status
     context
-    ~font
+    ~styling:status_box_styling
     ~title:"ves"
     ~station:vesey_station
     (Anchor.Ul
@@ -347,7 +351,7 @@ let draw
        , h - man_padding - Stroke.safe_padding geo_stroke - man_inset - 70 ));
   parking_status
     context
-    ~font
+    ~styling:status_box_styling
     ~title:"barc"
     ~station:barclay_station
     (Anchor.Lr
@@ -355,7 +359,7 @@ let draw
        , j_y - status_padding ));
   parking_status
     context
-    ~font
+    ~styling:status_box_styling
     ~title:"ful"
     ~station:fulton_station
     (Anchor.Ur
@@ -436,6 +440,13 @@ let render input cache =
   let%bind.Deferred.Or_error font =
     Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
   in
+  let status_box_styling =
+    Drawing.Status_box_styling.create
+      ~font
+      ~horizontal_padding:8
+      ~baseline_padding:12
+      ~primary_font_size:40.
+  in
   let%bind.Deferred.Or_error draw_inputs =
     match input with
     | Renderer.Input.Device device_status -> live_draw_inputs cache ~device_status ~now
@@ -446,7 +457,11 @@ let render input cache =
         ~now
     | Preview (Some Dense) ->
       let text_width number =
-        (Font.render_text font (Int.to_string number) ~size:40.).Font.Rendered_text.width
+        (Font.render_text
+           font
+           (Int.to_string number)
+           ~size:(Drawing.Status_box_styling.primary_font_size status_box_styling))
+          .Font.Rendered_text.width
       in
       let widest_two_digit_number =
         List.range 11 100
@@ -521,7 +536,7 @@ let render input cache =
   in
   let buffer =
     draw
-      ~font
+      ~status_box_styling
       ~device_status
       ~bridge_station
       ~roebling_station
