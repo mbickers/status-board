@@ -60,11 +60,31 @@ run = "opam lock ."
 
 [tasks.format]
 depends = ["deps"]
-run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --inplace {} +'''
+run = '''
+find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --inplace {} +
+find . \( -path './.git' -o -path './.worktrees' -o -path './_build*' -o -path './_opam' \) -prune -o -type f \( -name dune -o -name dune-project -o -name dune-workspace \) -exec sh -c '
+  for file do
+    formatted=$(mktemp)
+    if opam exec -- dune format-dune-file "$file" > "$formatted"; then
+      mv "$formatted" "$file"
+    else
+      rm -f "$formatted"
+      exit 1
+    fi
+  done
+' sh {} +
+'''
 
 [tasks.pre-commit]
 depends = ["deps"]
-run = '''find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --check {} +'''
+run = '''
+find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --check {} +
+find . \( -path './.git' -o -path './.worktrees' -o -path './_build*' -o -path './_opam' \) -prune -o -type f \( -name dune -o -name dune-project -o -name dune-workspace \) -exec bash -o pipefail -c '
+  for file do
+    opam exec -- dune format-dune-file "$file" | diff -u "$file" - || exit
+  done
+' bash {} +
+'''
 
 [tasks.build]
 depends = ["deps", "schemas"]
