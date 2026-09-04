@@ -9,14 +9,15 @@ module Row : sig
     }
 end
 
-val width : int
+val width : Status_box.Style.t -> int
+val height : Status_box.Style.t -> row_count:int -> int
 
 val draw
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
-  -> styling:Drawing.Status_box_styling.t
+  -> style:Status_box.Style.t
   -> title:string
   -> now:Time_ns.t
   -> stop_status:Mta_subway.Stop_status.t
   -> rows:Row.t list
-  -> (int * int) * (int * int)
+  -> unit

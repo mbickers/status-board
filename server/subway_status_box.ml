@@ -9,8 +9,6 @@ module Row = struct
     }
 end
 
-let width = 361
-
 let draw_bullet
       context
       ~font
@@ -42,11 +40,18 @@ let draw_bullet
     label
 ;;
 
-let columns context ~bullet_center_x ~bullet_radius ~padding =
+let columns
+      context
+      ~bullet_center_x
+      ~bullet_radius
+      ~padding
+      ~horizontal_padding_between_text
+  =
   let width, _ = Drawing.Context.size context in
   let left = bullet_center_x + bullet_radius + padding
   and right = width - padding in
-  left, (left + right) / 2, right
+  let westbound_right = ((left + right) / 2) - (horizontal_padding_between_text / 2) in
+  left, westbound_right, westbound_right + horizontal_padding_between_text, right
 ;;
 
 let draw_directions
@@ -54,10 +59,18 @@ let draw_directions
       ~bullet_center_x
       ~bullet_radius
       ~padding
+      ~horizontal_padding_between_text
       ~center_y
       ~half_height
   =
-  let left, middle, right = columns context ~bullet_center_x ~bullet_radius ~padding in
+  let left, westbound_right, eastbound_left, right =
+    columns
+      context
+      ~bullet_center_x
+      ~bullet_radius
+      ~padding
+      ~horizontal_padding_between_text
+  in
   let stroke = Drawing.Stroke.solid `b 2 in
   let draw_arrow direction ~center_x =
     let tip_x, tail_x, arrowhead_x =
@@ -78,8 +91,8 @@ let draw_directions
       tip
       (Float.of_int arrowhead_x, center_y +. half_height)
   in
-  draw_arrow `Left ~center_x:((left + middle) / 2);
-  draw_arrow `Right ~center_x:((middle + right) / 2)
+  draw_arrow `Left ~center_x:((left + westbound_right) / 2);
+  draw_arrow `Right ~center_x:((eastbound_left + right) / 2)
 ;;
 
 let draw_row
@@ -87,6 +100,7 @@ let draw_row
       ~bullet_center_x
       ~bullet_radius
       ~padding
+      ~horizontal_padding_between_text
       ~font
       ~bullet_font_size
       ~departure_font_size
@@ -120,8 +134,13 @@ let draw_row
     | true -> "S"
     | false -> "N"
   and bullet_text_fill = Drawing.Fill.solid `w
-  and text_left, text_middle, text_right =
-    columns context ~bullet_center_x ~bullet_radius ~padding
+  and text_left, westbound_right, eastbound_left, text_right =
+    columns
+      context
+      ~bullet_center_x
+      ~bullet_radius
+      ~padding
+      ~horizontal_padding_between_text
   in
   let draw_centered_text text ~left ~right =
     let rendered_text = Font.render_text font text ~size:departure_font_size in
@@ -147,65 +166,126 @@ let draw_row
   draw_centered_text
     (departure_text row.westbound_mta_direction)
     ~left:text_left
-    ~right:text_middle;
+    ~right:westbound_right;
   draw_centered_text
     (departure_text eastbound_direction)
-    ~left:text_middle
+    ~left:eastbound_left
     ~right:text_right
 ;;
 
-let draw context ~anchor ~styling ~title ~now ~stop_status ~rows =
-  let font = Drawing.Status_box_styling.font styling in
-  let padding = Drawing.Status_box_styling.horizontal_padding styling
-  and bullet_radius = 20
-  and arrow_half_height = 6.
-  and bullet_font_size = 35.
-  and departure_font_size = Drawing.Status_box_styling.primary_font_size styling in
-  let bullet_center_x = padding + bullet_radius
-  and arrow_center_y = Float.of_int padding +. arrow_half_height
-  and departure_line_height =
-    (Font.render_text font "0" ~size:departure_font_size).height
+module Layout = struct
+  type t =
+    { width : int
+    ; height : int
+    ; padding : int
+    ; horizontal_padding_between_text : int
+    ; bullet_radius : int
+    ; arrow_half_height : float
+    ; bullet_font_size : float
+    ; departure_font_size : float
+    ; arrow_center_y : float
+    ; first_row_center_y : int
+    ; row_height : int
+    }
+
+  let bullet_radius = 20
+
+  let width style =
+    let font = Status_box.Style.font style
+    and padding = Status_box.Style.horizontal_padding style
+    and horizontal_padding_between_text =
+      Status_box.Style.horizontal_padding_between_text style
+    and departure_font_size = Status_box.Style.primary_font_size style in
+    let maximum_direction_text_width, _ =
+      Font.max_width
+        font
+        [ `Number (0, 99); `String ","; `Number (0, 99); `String ","; `Number (0, 99) ]
+        ~size:departure_font_size
+    in
+    Float.of_int ((3 * padding) + horizontal_padding_between_text + (2 * bullet_radius))
+    +. (2. *. maximum_direction_text_width)
+    |> Float.iround_up_exn
+  ;;
+
+  let create style ~row_count =
+    let font = Status_box.Style.font style in
+    let padding = Status_box.Style.horizontal_padding style
+    and horizontal_padding_between_text =
+      Status_box.Style.horizontal_padding_between_text style
+    and arrow_half_height = 6.
+    and bullet_font_size = 35.
+    and departure_font_size = Status_box.Style.primary_font_size style in
+    let arrow_center_y = Float.of_int padding +. arrow_half_height
+    and departure_line_height =
+      (Font.render_text font "0" ~size:departure_font_size).height
+    in
+    let first_row_center_y =
+      Int.of_float (arrow_center_y +. arrow_half_height)
+      + padding
+      + (departure_line_height / 2)
+      + 3
+    and row_height = Int.max (2 * bullet_radius) departure_line_height + padding in
+    let height =
+      first_row_center_y + ((row_count - 1) * row_height) + bullet_radius + padding - 2
+    in
+    { width = width style
+    ; height
+    ; padding
+    ; horizontal_padding_between_text
+    ; bullet_radius
+    ; arrow_half_height
+    ; bullet_font_size
+    ; departure_font_size
+    ; arrow_center_y
+    ; first_row_center_y
+    ; row_height
+    }
+  ;;
+end
+
+let width = Layout.width
+let height style ~row_count = (Layout.create style ~row_count).height
+
+let draw context ~anchor ~style ~title ~now ~stop_status ~rows =
+  let font = Status_box.Style.font style in
+  let { Layout.width
+      ; height
+      ; padding
+      ; horizontal_padding_between_text
+      ; bullet_radius
+      ; arrow_half_height
+      ; bullet_font_size
+      ; departure_font_size
+      ; arrow_center_y
+      ; first_row_center_y
+      ; row_height
+      }
+    =
+    Layout.create style ~row_count:(List.length rows)
   in
-  let first_row_center_y =
-    Int.of_float (arrow_center_y +. arrow_half_height)
-    + padding
-    + (departure_line_height / 2)
-    + 3
-  and row_height = Int.max (2 * bullet_radius) departure_line_height + padding in
-  let box_height =
-    first_row_center_y
-    + ((List.length rows - 1) * row_height)
-    + bullet_radius
-    + padding
-    - 2
-  in
-  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:(width, box_height) in
-  Drawing.status_box
-    context
-    upper_left
-    lower_right
-    ~styling
-    ~title
-    ~f:(fun context ~fill:_ ->
-      draw_directions
+  let bullet_center_x = padding + bullet_radius in
+  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:(width, height) in
+  Status_box.draw context upper_left lower_right ~style ~title ~f:(fun context ~fill:_ ->
+    draw_directions
+      context
+      ~bullet_center_x
+      ~bullet_radius
+      ~padding
+      ~horizontal_padding_between_text
+      ~center_y:arrow_center_y
+      ~half_height:arrow_half_height;
+    List.iteri rows ~f:(fun row_index row ->
+      draw_row
         context
         ~bullet_center_x
         ~bullet_radius
         ~padding
-        ~center_y:arrow_center_y
-        ~half_height:arrow_half_height;
-      List.iteri rows ~f:(fun row_index row ->
-        draw_row
-          context
-          ~bullet_center_x
-          ~bullet_radius
-          ~padding
-          ~font
-          ~bullet_font_size
-          ~departure_font_size
-          ~now
-          ~stop_status
-          ~center_y:(first_row_center_y + (row_index * row_height))
-          row));
-  upper_left, lower_right
+        ~horizontal_padding_between_text
+        ~font
+        ~bullet_font_size
+        ~departure_font_size
+        ~now
+        ~stop_status
+        ~center_y:(first_row_center_y + (row_index * row_height))
+        row))
 ;;

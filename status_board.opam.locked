@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "status_board"
-version: "~dev"
+version: "dev"
 synopsis: "Personal status board"
 maintainer: "mbickers@fastmail.com"
 authors: "mbickers@fastmail.com"
@@ -26,8 +26,10 @@ depends: [
   "base_quickcheck" {= "v0.17.0"}
   "bigstringaf" {= "0.10.0"}
   "bin_prot" {= "v0.17.0-1"}
+  "camlp-streams" {= "5.0.1" & with-dev-setup}
   "capitalization" {= "v0.17.0"}
   "checkseum" {= "0.5.3"}
+  "chrome-trace" {= "3.24.2" & with-dev-setup}
   "cmdliner" {= "2.1.1"}
   "cohttp" {= "6.2.2"}
   "cohttp-async" {= "6.2.2"}
@@ -47,10 +49,17 @@ depends: [
   "decompress" {= "1.6.0"}
   "domain-name" {= "0.5.0"}
   "dune" {= "3.24.2"}
+  "dune-build-info" {= "3.24.2" & with-dev-setup}
   "dune-configurator" {= "3.24.2"}
+  "dune-rpc" {= "3.20.2" & with-dev-setup}
+  "dyn" {= "3.20.2" & with-dev-setup}
+  "either" {= "1.0.0" & with-dev-setup}
   "expect_test_helpers_core" {= "v0.17.0"}
+  "fiber" {= "3.7.0" & with-dev-setup}
   "fieldslib" {= "v0.17.0"}
+  "fix" {= "20250919" & with-dev-setup}
   "fmt" {= "0.11.0"}
+  "fpath" {= "0.7.3" & with-dev-setup}
   "gel" {= "v0.17.0"}
   "http" {= "6.2.2"}
   "imagelib" {= "20221222"}
@@ -59,8 +68,10 @@ depends: [
   "ipaddr" {= "5.6.2"}
   "ipaddr-sexp" {= "5.6.2"}
   "jane-street-headers" {= "v0.17.0"}
+  "jsonrpc" {= "1.18.0" & with-dev-setup}
   "jst-config" {= "v0.17.0"}
   "logs" {= "0.10.0"}
+  "lsp" {= "1.18.0" & with-dev-setup}
   "macaddr" {= "5.6.2"}
   "magic-mime" {= "1.3.1"}
   "menhir" {= "20260209"}
@@ -68,21 +79,31 @@ depends: [
   "menhirGLR" {= "20260209"}
   "menhirLib" {= "20260209"}
   "menhirSdk" {= "20260209"}
+  "merlin-lib" {= "4.16-501" & with-dev-setup}
   "mustache" {= "3.3.0"}
   "num" {= "1.6"}
   "ocaml" {= "5.1.1"}
   "ocaml-base-compiler" {= "5.1.1"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "3"}
+  "ocaml-lsp-server" {= "1.18.0" & with-dev-setup}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-protoc-plugin" {= "5.0.0"}
   "ocaml-syntax-shims" {= "1.0.0"}
+  "ocaml-version" {= "4.1.3" & with-dev-setup}
   "ocaml_intrinsics_kernel" {= "v0.17.2"}
   "ocamlbuild" {= "0.16.1"}
+  "ocamlc-loc" {= "3.20.2" & with-dev-setup}
   "ocamlfind" {= "1.9.8"}
+  "ocamlformat" {= "0.29.0" & with-dev-setup}
+  "ocamlformat-lib" {= "0.29.0" & with-dev-setup}
+  "ocamlformat-rpc-lib" {= "0.29.0" & with-dev-setup}
+  "ocp-indent" {= "1.9.0" & with-dev-setup}
   "octavius" {= "1.2.2"}
   "optint" {= "0.3.0"}
+  "ordering" {= "3.20.2" & with-dev-setup}
   "parsexp" {= "v0.17.0"}
+  "pp" {= "2.0.0" & with-dev-setup}
   "ppx_assert" {= "v0.17.0"}
   "ppx_base" {= "v0.17.0"}
   "ppx_bench" {= "v0.17.0"}
@@ -135,6 +156,7 @@ depends: [
   "stb_truetype" {= "0.7"}
   "stdio" {= "v0.17.0"}
   "stdlib-shims" {= "0.3.0"}
+  "stdune" {= "3.20.2" & with-dev-setup}
   "stringext" {= "1.6.0"}
   "textutils" {= "v0.17.0"}
   "time_now" {= "v0.17.0"}
@@ -144,7 +166,10 @@ depends: [
   "uopt" {= "v0.17.0"}
   "uri" {= "4.4.0"}
   "uri-sexp" {= "4.4.0"}
+  "uucp" {= "17.0.0" & with-dev-setup}
+  "uuseg" {= "17.0.0" & with-dev-setup}
   "uutf" {= "1.0.4"}
   "variantslib" {= "v0.17.0"}
+  "xdg" {= "3.24.2" & with-dev-setup}
   "yojson" {= "2.2.2"}
 ]

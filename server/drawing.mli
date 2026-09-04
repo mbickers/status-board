@@ -69,38 +69,11 @@ val text
   -> string
   -> unit
 
-module Status_box_styling : sig
-  type t
-
-  val create
-    :  font:Font.t
-    -> horizontal_padding:int
-    -> baseline_padding:int
-    -> primary_font_size:float
-    -> t
-
-  val font : t -> Font.t
-  val horizontal_padding : t -> int
-  val baseline_padding : t -> int
-  val primary_font_size : t -> float
-end
-
-val status_box
-  :  ?fill:(Context.t -> Fill.t)
-  -> Context.t
-  -> int * int
-  -> int * int
-  -> styling:Status_box_styling.t
-  -> title:string
-  -> f:(Context.t -> fill:Fill.t -> unit)
-  -> unit
-
 module O : sig
   module Context = Context
   module Anchor = Anchor
   module Fill = Fill
   module Path_resolver_step = Path_resolver_step
-  module Status_box_styling = Status_box_styling
   module Stroke = Stroke
 
   val solid : [ `b | `w ] -> Fill.t
@@ -133,15 +106,5 @@ module O : sig
     -> baseline_y:int
     -> size:float
     -> string
-    -> unit
-
-  val status_box
-    :  ?fill:(Context.t -> Fill.t)
-    -> Context.t
-    -> int * int
-    -> int * int
-    -> styling:Status_box_styling.t
-    -> title:string
-    -> f:(Context.t -> fill:Fill.t -> unit)
     -> unit
 end

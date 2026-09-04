@@ -83,3 +83,26 @@ let render_text t string ~size =
     done);
   { Rendered_text.buffer; width; height; origin_x = -left; baseline_y = -top }
 ;;
+
+let max_width t components ~size =
+  let widest_number low high =
+    List.range low (high + 1)
+    |> List.map ~f:(fun number ->
+      let string = Int.to_string number in
+      Float.of_int (render_text t string ~size).width, string)
+    |> List.max_elt ~compare:(fun (left_width, left_string) (right_width, right_string) ->
+      match Float.compare left_width right_width with
+      | 0 -> String.compare left_string right_string
+      | comparison -> comparison)
+    |> Option.value_exn
+    |> snd
+  in
+  let string =
+    components
+    |> List.map ~f:(function
+      | `Number (low, high) -> widest_number low high
+      | `String string -> string)
+    |> String.concat
+  in
+  Float.of_int (render_text t string ~size).width, string
+;;
