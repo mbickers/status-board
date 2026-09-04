@@ -247,6 +247,18 @@ let draw_stroke_point context ~stroke (center_x, center_y) =
   done
 ;;
 
+let circle context ~fill ~center:(center_x, center_y) ~radius =
+  for y = center_y - radius to center_y + radius do
+    for x = center_x - radius to center_x + radius do
+      let x_distance = x - center_x
+      and y_distance = y - center_y in
+      match (x_distance * x_distance) + (y_distance * y_distance) <= radius * radius with
+      | true -> Context.write context (x, y) (fill (x, y))
+      | false -> ()
+    done
+  done
+;;
+
 let draw_line_without_casing context ~stroke ((x1, y1) as start) ((x2, y2) as finish) =
   let steps = Int.max 1 (distance start finish *. 2. |> Float.round_up |> Int.of_float) in
   for step = 0 to steps do
@@ -380,6 +392,7 @@ module O = struct
   let fade_to = Fill.fade_to
   let rect = rect
   let polygon = polygon
+  let circle = circle
   let draw_line = draw_line
   let draw_quadratic_curve = draw_quadratic_curve
   let rounded_path = rounded_path

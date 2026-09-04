@@ -148,6 +148,7 @@ let parking_status context ~style ~title ~box_size ~(station : Citibike.Station.
 module Draw_inputs = struct
   type t =
     { device_status : Renderer.Device_status.t
+    ; weather : Weather.Summary.t
     ; bridge_station : Citibike.Station.t
     ; roebling_station : Citibike.Station.t
     ; vesey_station : Citibike.Station.t
@@ -160,9 +161,44 @@ module Draw_inputs = struct
     }
 end
 
+let day_night_phase weather ~at =
+  let twilight = Time_ns.Span.of_min 15. in
+  let time_of_day_frac time =
+    Time_ns.to_ofday time ~zone:weather.Weather.Summary.zone
+    |> Time_ns.Ofday.to_span_since_start_of_day
+    |> Time_ns.Span.to_sec
+    |> fun seconds -> seconds /. Time_ns.Span.to_sec Time_ns.Span.day
+  in
+  let sunrise = time_of_day_frac (Time_ns.sub weather.sunrise twilight)
+  and sunset = time_of_day_frac (Time_ns.add weather.sunset twilight)
+  and at_frac = time_of_day_frac at in
+  let is_night =
+    Float.compare at_frac sunset >= 0 || Float.compare at_frac sunrise <= 0
+  in
+  let start, finish =
+    match is_night with
+    | true -> sunset, sunrise
+    | false -> sunrise, sunset
+  in
+  let elapsed_since start time =
+    let elapsed = time -. start in
+    match Float.compare elapsed 0. >= 0 with
+    | true -> elapsed
+    | false -> elapsed +. 1.
+  in
+  is_night, elapsed_since start at_frac /. elapsed_since start finish
+;;
+
+let fahrenheit_text = function
+  | None -> "--"
+  | Some celsius ->
+    (celsius *. 9. /. 5.) +. 32. |> Float.iround_nearest_exn |> Int.to_string
+;;
+
 let draw
       ~font
       ~device_status
+      ~weather
       ~bridge_station
       ~roebling_station
       ~vesey_station
@@ -176,7 +212,13 @@ let draw
   let open Drawing.O in
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
-  let base_color = `b in
+  let secondary_text_size = 31. in
+  let is_night, sun_moon_progress_frac = day_night_phase weather ~at:now in
+  let base_color =
+    match is_night with
+    | true -> `b
+    | false -> `w
+  in
   let inverse_base_color =
     match base_color with
     | `b -> `w
@@ -198,7 +240,6 @@ let draw
   and land_fill = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
-  text context ~font ~fill:black ~origin_x:200 ~baseline_y:100 ~size:80. "weather here";
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let maximum_citibike_count_width, _ =
@@ -269,7 +310,7 @@ let draw
     + marcy_status_height
   in
   let brooklyn_top = h - brooklyn_height in
-  let fade_out_height = 30 in
+  let fade_out_height = 20 in
   let map_top = brooklyn_top in
   let map_faded_top = map_top - fade_out_height in
   let north_fade fill =
@@ -352,6 +393,97 @@ let draw
     | true -> faded_water_fill (x, y)
     | false -> land_fill (x, y)
   in
+  let sun_moon_radius = 72 in
+  let sun_moon_left = screen_edge_padding + sun_moon_radius
+  and sun_moon_right = w - screen_edge_padding - sun_moon_radius
+  and sun_moon_peak_y = screen_edge_padding + sun_moon_radius
+  and sun_moon_endpoint_y = map_faded_top - screen_edge_padding - sun_moon_radius in
+  let sun_moon_x =
+    Float.of_int sun_moon_left
+    +. (sun_moon_progress_frac *. Float.of_int (sun_moon_right - sun_moon_left))
+  in
+  let distance_from_peak = sun_moon_progress_frac -. 0.5 in
+  let sun_moon_y =
+    Float.of_int sun_moon_peak_y
+    +. (4.
+        *. Float.of_int (sun_moon_endpoint_y - sun_moon_peak_y)
+        *. distance_from_peak
+        *. distance_from_peak)
+  in
+  let sun_moon_center =
+    Float.iround_nearest_exn sun_moon_x, Float.iround_nearest_exn sun_moon_y
+  in
+  circle
+    context
+    ~fill:(Fill.bayer_exn ~white_frac:0.8)
+    ~center:sun_moon_center
+    ~radius:sun_moon_radius;
+  let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
+  let temperature_text = fahrenheit_text weather.current_temperature_celsius
+  and low_high_text =
+    [ "l" ^ fahrenheit_text weather.low_temperature_celsius
+    ; "h" ^ fahrenheit_text weather.high_temperature_celsius
+    ]
+    |> String.concat ~sep:"  "
+  and temperature_size = 70.
+  and text_spacing = 4 in
+  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
+  and rendered_low_high = Font.render_text font low_high_text ~size:secondary_text_size
+  and rendered_uv =
+    Option.bind weather.max_uv ~f:(fun uv ->
+      match Float.compare uv 6. > 0 with
+      | false -> None
+      | true ->
+        let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
+        Some (text, Font.render_text font text ~size:secondary_text_size))
+  in
+  let uv_height =
+    Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
+      text_spacing + rendered_uv.height)
+  in
+  let text_top =
+    sun_moon_center_y
+    - ((rendered_temperature.height + text_spacing + rendered_low_high.height + uv_height)
+       / 2)
+  in
+  draw_centered_text
+    context
+    ~font
+    ~fill:black
+    ~size:temperature_size
+    ~baseline_y:(text_top + rendered_temperature.baseline_y)
+    ~left:(sun_moon_center_x - sun_moon_radius)
+    ~right:(sun_moon_center_x + sun_moon_radius)
+    temperature_text;
+  draw_centered_text
+    context
+    ~font
+    ~fill:black
+    ~size:secondary_text_size
+    ~baseline_y:
+      (text_top
+       + rendered_temperature.height
+       + text_spacing
+       + rendered_low_high.baseline_y)
+    ~left:(sun_moon_center_x - sun_moon_radius)
+    ~right:(sun_moon_center_x + sun_moon_radius)
+    low_high_text;
+  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
+    draw_centered_text
+      context
+      ~font
+      ~fill:black
+      ~size:secondary_text_size
+      ~baseline_y:
+        (text_top
+         + rendered_temperature.height
+         + text_spacing
+         + rendered_low_high.height
+         + text_spacing
+         + rendered_uv.baseline_y)
+      ~left:(sun_moon_center_x - sun_moon_radius)
+      ~right:(sun_moon_center_x + sun_moon_radius)
+      uv_text);
   rect context ~fill:faded_water_fill (0, map_faded_top) (w, h);
   polygon context ~fill:(north_fade land_fill) manhattan_path;
   polygon context ~fill:brooklyn_fill (brooklyn_path @ [ w, h ]);
@@ -471,18 +603,17 @@ let draw
         ~zone:(Time_ns_unix.Zone.find_exn "America/New_York")
     ]
     |> String.concat ~sep:" "
-  and status_text_size = 24.
   and status_text_padding = 8 in
   let status_text_fill = Fill.bayer_exn ~white_frac:0.5 in
   let draw_status_text ~origin_x string =
-    let rendered_text = Font.render_text font string ~size:status_text_size in
+    let rendered_text = Font.render_text font string ~size:secondary_text_size in
     text
       context
       ~font
       ~fill:status_text_fill
       ~origin_x:(origin_x rendered_text)
       ~baseline_y:(status_text_padding + rendered_text.baseline_y)
-      ~size:status_text_size
+      ~size:secondary_text_size
       string
   in
   draw_status_text voltage_text ~origin_x:(fun rendered_text ->
@@ -492,7 +623,10 @@ let draw
   image
 ;;
 
-type debug_preset = Dense
+type debug_preset = Dense_text_offset_time
+
+let weather_coordinates = { Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
+let query_weather cache = Weather.query cache ~coordinates:weather_coordinates
 
 let live_draw_inputs cache ~device_status ~now =
   let%bind citibike_result = Citibike.query cache
@@ -500,10 +634,13 @@ let live_draw_inputs cache ~device_status ~now =
     Mta_subway.query
       cache
       ~which_feeds:[ Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
-  in
+  and weather_result = query_weather cache in
   return
     (let%bind.Or_error citibike_stations =
        Latest_result.latest_success citibike_result
+       |> Or_error.map ~f:(fun completed -> completed.value)
+     and weather =
+       Latest_result.latest_success weather_result
        |> Or_error.map ~f:(fun completed -> completed.value)
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
@@ -518,6 +655,7 @@ let live_draw_inputs cache ~device_status ~now =
        Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16"
      in
      { Draw_inputs.device_status
+     ; weather
      ; bridge_station
      ; roebling_station
      ; vesey_station
@@ -543,7 +681,14 @@ let render input cache =
         cache
         ~device_status:{ Renderer.Device_status.battery_voltage = Some 4.1 }
         ~now
-    | Preview (Some Dense) ->
+    | Preview (Some Dense_text_offset_time) ->
+      let now = Time_ns.add now (Time_ns.Span.of_hr 16.) in
+      let%bind weather_result = query_weather cache in
+      let%bind.Deferred.Or_error weather =
+        Latest_result.latest_success weather_result
+        |> Or_error.map ~f:(fun completed -> completed.value)
+        |> return
+      in
       let _, widest_two_digit_number =
         Font.max_width font [ `Number (12, 99) ] ~size:20.
       in
@@ -589,6 +734,8 @@ let render input cache =
       return
         (Ok
            { Draw_inputs.device_status = { battery_voltage = None }
+           ; weather =
+               { weather with current_temperature_celsius = Some 40.; max_uv = Some 10. }
            ; bridge_station = station
            ; roebling_station = station
            ; vesey_station = station
@@ -601,6 +748,7 @@ let render input cache =
            })
   in
   let { Draw_inputs.device_status
+      ; weather
       ; bridge_station
       ; roebling_station
       ; vesey_station
@@ -618,6 +766,7 @@ let render input cache =
     draw
       ~font
       ~device_status
+      ~weather
       ~bridge_station
       ~roebling_station
       ~vesey_station
@@ -632,8 +781,8 @@ let render input cache =
 ;;
 
 let renderer =
-  { Renderer.debug_presets = [ Dense ]
-  ; debug_preset_name = (fun Dense -> "dense")
+  { Renderer.debug_presets = [ Dense_text_offset_time ]
+  ; debug_preset_name = (fun Dense_text_offset_time -> "dense text + offset time")
   ; render
   }
 ;;

@@ -10,8 +10,13 @@ end
 
 module Summary : sig
   type t =
-    { max_uv : float option (** UV Index starts at 0. Values of 11 or more are extreme. *)
-    ; sunset : Time_ns.Alternate_sexp.t option
+    { zone : Time_ns_unix.Zone.t
+    ; current_temperature_celsius : float option
+    ; low_temperature_celsius : float option
+    ; high_temperature_celsius : float option
+    ; max_uv : float option (** UV Index starts at 0. Values of 11 or more are extreme. *)
+    ; sunrise : Time_ns.Alternate_sexp.t
+    ; sunset : Time_ns.Alternate_sexp.t
     ; precipitation_probabilities : (Time_ns.Alternate_sexp.t * int) list
     ; thunderstorm : bool
     ; cloudy : bool
