@@ -82,8 +82,7 @@ let classify_weather_code weather_code =
 
 module Summary = struct
   type t =
-    { zone : Time_ns_unix.Zone.t
-    ; current_temperature_celsius : float option
+    { current_temperature_celsius : float option
     ; low_temperature_celsius : float option
     ; high_temperature_celsius : float option
     ; current_uv_index : float option
@@ -178,8 +177,7 @@ let summarize ~now ~forecast ~air_quality =
     Option.to_list forecast.current.temperature_2m
     @ List.filter_map hours ~f:(fun hour -> hour.temperature_celsius)
   in
-  { Summary.zone
-  ; current_temperature_celsius = forecast.current.temperature_2m
+  { Summary.current_temperature_celsius = forecast.current.temperature_2m
   ; low_temperature_celsius = List.min_elt temperatures ~compare:Float.compare
   ; high_temperature_celsius = List.max_elt temperatures ~compare:Float.compare
   ; current_uv_index = forecast.current.uv_index

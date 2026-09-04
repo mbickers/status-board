@@ -10,8 +10,7 @@ end
 
 module Summary : sig
   type t =
-    { zone : Time_ns_unix.Zone.t
-    ; current_temperature_celsius : float option
+    { current_temperature_celsius : float option
     ; low_temperature_celsius : float option
     ; high_temperature_celsius : float option
     ; current_uv_index : float option

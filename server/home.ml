@@ -161,15 +161,17 @@ module Draw_inputs = struct
     }
 end
 
+let display_zone = Time_ns_unix.Zone.find_exn "America/New_York"
+
 let day_night_phase weather ~at =
   let twilight = Time_ns.Span.of_min 15. in
   let time_of_day_frac time =
-    Time_ns.to_ofday time ~zone:weather.Weather.Summary.zone
+    Time_ns.to_ofday time ~zone:display_zone
     |> Time_ns.Ofday.to_span_since_start_of_day
     |> Time_ns.Span.to_sec
     |> fun seconds -> seconds /. Time_ns.Span.to_sec Time_ns.Span.day
   in
-  let sunrise = time_of_day_frac (Time_ns.sub weather.sunrise twilight)
+  let sunrise = time_of_day_frac (Time_ns.sub weather.Weather.Summary.sunrise twilight)
   and sunset = time_of_day_frac (Time_ns.add weather.sunset twilight)
   and at_frac = time_of_day_frac at in
   let is_night =
@@ -194,6 +196,8 @@ let fahrenheit_text = function
   | Some celsius ->
     (celsius *. 9. /. 5.) +. 32. |> Float.iround_nearest_exn |> Int.to_string
 ;;
+
+let celsius_of_fahrenheit fahrenheit = (fahrenheit -. 32.) *. 5. /. 9.
 
 let draw
       ~font
@@ -613,12 +617,7 @@ let draw
       [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
     | None -> "voltage unknown"
   and updated_text =
-    [ "updated"
-    ; Time_ns_unix.format
-        now
-        "%H:%M"
-        ~zone:(Time_ns_unix.Zone.find_exn "America/New_York")
-    ]
+    [ "updated"; Time_ns_unix.format now "%H:%M" ~zone:display_zone ]
     |> String.concat ~sep:" "
   and status_text_padding = 8 in
   let status_text_fill = Fill.bayer_exn ~white_frac:0.5 in
@@ -640,7 +639,7 @@ let draw
   image
 ;;
 
-type debug_preset = Dense_text_offset_time
+type debug_preset = Dense_text_night
 
 let weather_coordinates = { Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
 let query_weather cache = Weather.query cache ~coordinates:weather_coordinates
@@ -698,13 +697,19 @@ let render input cache =
         cache
         ~device_status:{ Renderer.Device_status.battery_voltage = Some 4.1 }
         ~now
-    | Preview (Some Dense_text_offset_time) ->
-      let now = Time_ns.add now (Time_ns.Span.of_hr 16.) in
+    | Preview (Some Dense_text_night) ->
       let%bind weather_result = query_weather cache in
       let%bind.Deferred.Or_error weather =
         Latest_result.latest_success weather_result
         |> Or_error.map ~f:(fun completed -> completed.value)
         |> return
+      in
+      let now =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:22 ())
+          ~zone:display_zone
       in
       let _, widest_two_digit_number =
         Font.max_width font [ `Number (12, 99) ] ~size:20.
@@ -753,7 +758,9 @@ let render input cache =
            { Draw_inputs.device_status = { battery_voltage = None }
            ; weather =
                { weather with
-                 current_temperature_celsius = Some 40.
+                 current_temperature_celsius = Some (celsius_of_fahrenheit 104.)
+               ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
+               ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
                ; current_uv_index = Some 10.
                }
            ; bridge_station = station
@@ -801,8 +808,8 @@ let render input cache =
 ;;
 
 let renderer =
-  { Renderer.debug_presets = [ Dense_text_offset_time ]
-  ; debug_preset_name = (fun Dense_text_offset_time -> "dense text + offset time")
+  { Renderer.debug_presets = [ Dense_text_night ]
+  ; debug_preset_name = (fun Dense_text_night -> "dense text + night")
   ; render
   }
 ;;
