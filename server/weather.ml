@@ -86,7 +86,8 @@ module Summary = struct
     ; current_temperature_celsius : float option
     ; low_temperature_celsius : float option
     ; high_temperature_celsius : float option
-    ; max_uv : float option
+    ; current_uv_index : float option
+    ; uv_indices : (Time_ns.Alternate_sexp.t * float) list
     ; sunrise : Time_ns.Alternate_sexp.t
     ; sunset : Time_ns.Alternate_sexp.t
     ; precipitation_probabilities : (Time_ns.Alternate_sexp.t * int) list
@@ -176,15 +177,15 @@ let summarize ~now ~forecast ~air_quality =
   let temperatures =
     Option.to_list forecast.current.temperature_2m
     @ List.filter_map hours ~f:(fun hour -> hour.temperature_celsius)
-  and uv_indices =
-    Option.to_list forecast.current.uv_index
-    @ List.filter_map hours ~f:(fun hour -> hour.uv_index)
   in
   { Summary.zone
   ; current_temperature_celsius = forecast.current.temperature_2m
   ; low_temperature_celsius = List.min_elt temperatures ~compare:Float.compare
   ; high_temperature_celsius = List.max_elt temperatures ~compare:Float.compare
-  ; max_uv = List.max_elt uv_indices ~compare:Float.compare
+  ; current_uv_index = forecast.current.uv_index
+  ; uv_indices =
+      List.filter_map hours ~f:(fun hour ->
+        Option.map hour.uv_index ~f:(fun uv_index -> hour.time, uv_index))
   ; sunrise
   ; sunset
   ; precipitation_probabilities =

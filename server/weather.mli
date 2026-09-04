@@ -14,7 +14,8 @@ module Summary : sig
     ; current_temperature_celsius : float option
     ; low_temperature_celsius : float option
     ; high_temperature_celsius : float option
-    ; max_uv : float option (** UV Index starts at 0. Values of 11 or more are extreme. *)
+    ; current_uv_index : float option
+    ; uv_indices : (Time_ns.Alternate_sexp.t * float) list
     ; sunrise : Time_ns.Alternate_sexp.t
     ; sunset : Time_ns.Alternate_sexp.t
     ; precipitation_probabilities : (Time_ns.Alternate_sexp.t * int) list

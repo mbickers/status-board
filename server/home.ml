@@ -237,7 +237,13 @@ let draw
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
   let black = Fill.solid `b
-  and land_fill = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
+  and land_fill =
+    Fill.bayer_exn
+      ~size:16
+      ~white_frac:
+        (match is_night with
+         | true -> 0.8
+         | false -> 254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
   let manhattan_w = 220
@@ -393,7 +399,7 @@ let draw
     | true -> faded_water_fill (x, y)
     | false -> land_fill (x, y)
   in
-  let sun_moon_radius = 72 in
+  let sun_moon_radius = 69 in
   let sun_moon_left = screen_edge_padding + sun_moon_radius
   and sun_moon_right = w - screen_edge_padding - sun_moon_radius
   and sun_moon_peak_y = screen_edge_padding + sun_moon_radius
@@ -419,6 +425,17 @@ let draw
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
+  let uv_forecast_ends_at = Time_ns.add now (Time_ns.Span.of_hr 8.) in
+  let max_uv =
+    Option.to_list weather.current_uv_index
+    @ List.filter_map weather.uv_indices ~f:(fun (time, uv_index) ->
+      match
+        Time_ns.compare time now >= 0 && Time_ns.compare time uv_forecast_ends_at <= 0
+      with
+      | true -> Some uv_index
+      | false -> None)
+    |> List.max_elt ~compare:Float.compare
+  in
   let temperature_text = fahrenheit_text weather.current_temperature_celsius
   and low_high_text =
     [ "l" ^ fahrenheit_text weather.low_temperature_celsius
@@ -430,7 +447,7 @@ let draw
   let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
   and rendered_low_high = Font.render_text font low_high_text ~size:secondary_text_size
   and rendered_uv =
-    Option.bind weather.max_uv ~f:(fun uv ->
+    Option.bind max_uv ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
@@ -735,7 +752,10 @@ let render input cache =
         (Ok
            { Draw_inputs.device_status = { battery_voltage = None }
            ; weather =
-               { weather with current_temperature_celsius = Some 40.; max_uv = Some 10. }
+               { weather with
+                 current_temperature_celsius = Some 40.
+               ; current_uv_index = Some 10.
+               }
            ; bridge_station = station
            ; roebling_station = station
            ; vesey_station = station
