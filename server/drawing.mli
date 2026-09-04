@@ -25,7 +25,7 @@ module Fill : sig
   val solid : [ `b | `w ] -> t
   val invert : t -> t
   val bayer_exn : ?size:int -> ?offset:int * int -> white_frac:float -> t
-  val fade_to_white : t -> white_frac:(int * int -> float) -> t
+  val fade_to : t -> color:[ `b | `w ] -> color_frac:(int * int -> float) -> t
   val fractional : frac:float -> frontier_angle_degrees:float -> Context.t -> t
 end
 
@@ -79,7 +79,7 @@ module O : sig
   val solid : [ `b | `w ] -> Fill.t
   val invert : Fill.t -> Fill.t
   val bayer_exn : ?size:int -> ?offset:int * int -> white_frac:float -> Fill.t
-  val fade_to_white : Fill.t -> white_frac:(int * int -> float) -> Fill.t
+  val fade_to : Fill.t -> color:[ `b | `w ] -> color_frac:(int * int -> float) -> Fill.t
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
   val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
   val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit

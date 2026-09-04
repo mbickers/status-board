@@ -176,6 +176,12 @@ let draw
   let open Drawing.O in
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
+  let base_color = `b in
+  let inverse_base_color =
+    match base_color with
+    | `b -> `w
+    | `w -> `b
+  in
   let status_box_style =
     Status_box.Style.create
       ~font
@@ -191,7 +197,7 @@ let draw
   let black = Fill.solid `b
   and land_fill = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
-  rect context ~fill:(Fill.solid `w) (0, 0) (w, h);
+  rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
   text context ~font ~fill:black ~origin_x:200 ~baseline_y:100 ~size:80. "weather here";
   let manhattan_w = 220
   and manhattan_inset = 43 in
@@ -226,10 +232,7 @@ let draw
     parking_grid_top - ((parking_status_height + base_padding) / 2)
   in
   let parking_grid_right = parking_grid_right_column + parking_status_width in
-  let subway_casing = Stroke.solid `w 12 in
-  let subway_stroke fill = Stroke.create ~casing:subway_casing fill 8 in
-  let subway_stroke_safe_padding = Stroke.safe_padding (subway_stroke black)
-  and l_fill : Fill.t = Fill.bayer_exn ~white_frac:(9. /. 16.)
+  let l_fill : Fill.t = Fill.bayer_exn ~white_frac:(9. /. 16.)
   and j_fill : Fill.t = Fill.bayer_exn ~white_frac:(1. /. 16.)
   and m_fill : Fill.t = Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.) in
   let bedford_rows =
@@ -270,11 +273,15 @@ let draw
   let map_top = brooklyn_top in
   let map_faded_top = map_top - fade_out_height in
   let north_fade fill =
-    fade_to_white
-      ~white_frac:(fun (_, y) ->
+    fade_to
+      ~color:base_color
+      ~color_frac:(fun (_, y) ->
         1. -. (Float.of_int (y - map_faded_top) /. Float.of_int fade_out_height))
       fill
   in
+  let subway_casing = Stroke.create (north_fade (Fill.solid `w)) 12 in
+  let subway_stroke fill = Stroke.create ~casing:subway_casing fill 8 in
+  let subway_stroke_safe_padding = Stroke.safe_padding (subway_stroke black) in
   let manhattan_path =
     Path_resolver_step.resolve
       [ Path_resolver_step.Point (manhattan_left, map_faded_top)
@@ -329,8 +336,8 @@ let draw
     let wave_x = (x + (y / 12 % 2 * 12)) % 24 in
     let distance_from_center = Int.abs (wave_x - 12) in
     match y % 12 = 5 - (distance_from_center * distance_from_center / 48) with
-    | true -> `b
-    | false -> `w
+    | true -> inverse_base_color
+    | false -> base_color
   in
   let faded_water_fill = north_fade water_fill in
   let brooklyn_fill (x, y) =
@@ -470,7 +477,6 @@ let draw
   let draw_status_text ~origin_x string =
     let rendered_text = Font.render_text font string ~size:status_text_size in
     text
-      ~halo:(2, Fill.solid `w)
       context
       ~font
       ~fill:status_text_fill

@@ -112,12 +112,12 @@ module Fill = struct
       | false -> `w
   ;;
 
-  let fade_to_white fill ~white_frac =
+  let fade_to fill ~color ~color_frac =
     let threshold = bayer_threshold ~size:16 in
     fun ((x, y) as point) ->
-      match Float.compare (threshold (x, y)) (white_frac point) >= 0 with
+      match Float.compare (threshold (x, y)) (color_frac point) >= 0 with
       | true -> fill point
-      | false -> `w
+      | false -> color
   ;;
 
   let fractional ~frac ~frontier_angle_degrees context =
@@ -377,7 +377,7 @@ module O = struct
   let solid = Fill.solid
   let invert = Fill.invert
   let bayer_exn = Fill.bayer_exn
-  let fade_to_white = Fill.fade_to_white
+  let fade_to = Fill.fade_to
   let rect = rect
   let polygon = polygon
   let draw_line = draw_line
