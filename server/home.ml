@@ -421,7 +421,7 @@ let draw
   in
   circle
     context
-    ~fill:(Fill.bayer_exn ~white_frac:0.8)
+    ~fill:(Fill.bayer_exn ~size:16 ~white_frac:0.79)
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
