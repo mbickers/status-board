@@ -466,13 +466,14 @@ let draw
     |> String.concat ~sep:" "
   and status_text_size = 24.
   and status_text_padding = 8 in
+  let status_text_fill = Fill.bayer_exn ~white_frac:0.5 in
   let draw_status_text ~origin_x string =
     let rendered_text = Font.render_text font string ~size:status_text_size in
     text
       ~halo:(2, Fill.solid `w)
       context
       ~font
-      ~fill:black
+      ~fill:status_text_fill
       ~origin_x:(origin_x rendered_text)
       ~baseline_y:(status_text_padding + rendered_text.baseline_y)
       ~size:status_text_size
