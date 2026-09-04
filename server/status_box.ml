@@ -3,32 +3,21 @@ open! Core
 module Style = struct
   type t =
     { font : Font.t
-    ; horizontal_padding : int
-    ; horizontal_padding_between_text : int
-    ; baseline_padding : int
+    ; base_padding : int
     ; primary_font_size : float
+    ; error_fill : Drawing.Fill.t
     }
 
-  let create
-        ~font
-        ~horizontal_padding
-        ~horizontal_padding_between_text
-        ~baseline_padding
-        ~primary_font_size
-    =
-    { font
-    ; horizontal_padding
-    ; horizontal_padding_between_text
-    ; baseline_padding
-    ; primary_font_size
-    }
+  let create ~font ~base_padding ~primary_font_size ~error_fill =
+    { font; base_padding; primary_font_size; error_fill }
   ;;
 
   let font t = t.font
-  let horizontal_padding t = t.horizontal_padding
-  let horizontal_padding_between_text t = t.horizontal_padding_between_text
-  let baseline_padding t = t.baseline_padding
+  let base_padding t = t.base_padding
+  let horizontal_padding_between_text t = t.base_padding + 4
+  let baseline_padding t = t.base_padding + 4
   let primary_font_size t = t.primary_font_size
+  let error_fill t = t.error_fill
 end
 
 let draw

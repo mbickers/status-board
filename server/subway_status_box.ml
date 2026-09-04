@@ -192,7 +192,7 @@ module Layout = struct
 
   let width style =
     let font = Status_box.Style.font style
-    and padding = Status_box.Style.horizontal_padding style
+    and padding = Status_box.Style.base_padding style
     and horizontal_padding_between_text =
       Status_box.Style.horizontal_padding_between_text style
     and departure_font_size = Status_box.Style.primary_font_size style in
@@ -209,7 +209,7 @@ module Layout = struct
 
   let create style ~row_count =
     let font = Status_box.Style.font style in
-    let padding = Status_box.Style.horizontal_padding style
+    let padding = Status_box.Style.base_padding style
     and horizontal_padding_between_text =
       Status_box.Style.horizontal_padding_between_text style
     and arrow_half_height = 6.

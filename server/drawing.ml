@@ -148,7 +148,10 @@ module Stroke = struct
 
   let create ?casing fill width = { fill; width; casing }
   let solid ?casing color width = create ?casing (Fill.solid color) width
-  let safe_padding t = t.width / 2
+
+  let rec safe_padding t =
+    Int.max (t.width / 2) (Option.value_map t.casing ~default:0 ~f:safe_padding)
+  ;;
 end
 
 let rect context ~fill (x1, y1) (x2, y2) =

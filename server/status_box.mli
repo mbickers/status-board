@@ -5,17 +5,17 @@ module Style : sig
 
   val create
     :  font:Font.t
-    -> horizontal_padding:int
-    -> horizontal_padding_between_text:int
-    -> baseline_padding:int
+    -> base_padding:int
     -> primary_font_size:float
+    -> error_fill:Drawing.Fill.t
     -> t
 
   val font : t -> Font.t
-  val horizontal_padding : t -> int
+  val base_padding : t -> int
   val horizontal_padding_between_text : t -> int
   val baseline_padding : t -> int
   val primary_font_size : t -> float
+  val error_fill : t -> Drawing.Fill.t
 end
 
 val draw
