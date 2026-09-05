@@ -158,7 +158,7 @@ let parking_status
 module Draw_inputs = struct
   type t =
     { device_status : Status_board.Device_status.t
-    ; weather : Feeds.Weather.Summary.t
+    ; weather : Weather_info.t
     ; bridge_station : Feeds.Citibike.Station.t
     ; roebling_station : Feeds.Citibike.Station.t
     ; vesey_station : Feeds.Citibike.Station.t
@@ -181,8 +181,7 @@ let day_night_phase weather ~at =
     |> Time_ns.Span.to_sec
     |> fun seconds -> seconds /. Time_ns.Span.to_sec Time_ns.Span.day
   in
-  let sunrise =
-    time_of_day_frac (Time_ns.sub weather.Feeds.Weather.Summary.sunrise twilight)
+  let sunrise = time_of_day_frac (Time_ns.sub weather.Weather_info.sunrise twilight)
   and sunset = time_of_day_frac (Time_ns.add weather.sunset twilight)
   and at_frac = time_of_day_frac at in
   let is_night =
@@ -440,17 +439,6 @@ let draw
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
-  let uv_forecast_ends_at = Time_ns.add now (Time_ns.Span.of_hr 8.) in
-  let max_uv =
-    Option.to_list weather.current_uv_index
-    @ List.filter_map weather.uv_indices ~f:(fun (time, uv_index) ->
-      match
-        Time_ns.compare time now >= 0 && Time_ns.compare time uv_forecast_ends_at <= 0
-      with
-      | true -> Some uv_index
-      | false -> None)
-    |> List.max_elt ~compare:Float.compare
-  in
   let temperature_text = fahrenheit_text weather.current_temperature_celsius
   and low_high_text =
     [ "l" ^ fahrenheit_text weather.low_temperature_celsius
@@ -464,7 +452,7 @@ let draw
   and rendered_low_high =
     Graphics.Font.render_text font low_high_text ~size:secondary_text_size
   and rendered_uv =
-    Option.bind max_uv ~f:(fun uv ->
+    Option.bind weather.maximum_uv_index ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
@@ -671,12 +659,13 @@ let live_draw_inputs cache ~device_status ~now =
     (let%bind.Or_error citibike_stations =
        Feeds.Latest_result.latest_success citibike_result
        |> Or_error.map ~f:(fun completed -> completed.value)
-     and weather =
+     and forecast =
        Feeds.Latest_result.latest_success weather_result
-       |> Or_error.map ~f:(fun completed -> completed.value)
+       |> Or_error.map ~f:(fun completed -> fst completed.value)
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
-     let%map.Or_error bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+     let%map.Or_error weather = Weather_info.create ~look_forward_hours:24 ~now ~forecast
+     and bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
      and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
      and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
      and west_station = find_station "2170352212111402482"
@@ -715,18 +704,31 @@ let render input cache =
         ~device_status:{ Status_board.Device_status.battery_voltage = Some 4.1 }
         ~now
     | Preview (Some preset) when String.equal preset dense_text_night_preset ->
-      let%bind weather_result = query_weather cache in
-      let%bind.Deferred.Or_error weather =
-        Feeds.Latest_result.latest_success weather_result
-        |> Or_error.map ~f:(fun completed -> completed.value)
-        |> return
-      in
       let now =
         Time_ns.occurrence
           `First_after_or_at
           now
           ~ofday:(Time_ns.Ofday.create ~hr:22 ())
           ~zone:display_zone
+      in
+      let weather =
+        { Weather_info.current_temperature_celsius = Some (celsius_of_fahrenheit 104.)
+        ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
+        ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
+        ; maximum_uv_index = Some 10.
+        ; sunrise =
+            Time_ns.occurrence
+              `First_after_or_at
+              now
+              ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+              ~zone:display_zone
+        ; sunset =
+            Time_ns.occurrence
+              `First_after_or_at
+              now
+              ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+              ~zone:display_zone
+        }
       in
       let _, widest_two_digit_number =
         Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
@@ -774,13 +776,7 @@ let render input cache =
       return
         (Ok
            { Draw_inputs.device_status = { battery_voltage = None }
-           ; weather =
-               { weather with
-                 current_temperature_celsius = Some (celsius_of_fahrenheit 104.)
-               ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
-               ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
-               ; current_uv_index = Some 10.
-               }
+           ; weather
            ; bridge_station = station
            ; roebling_station = station
            ; vesey_station = station
