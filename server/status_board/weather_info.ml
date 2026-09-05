@@ -20,6 +20,7 @@ type t =
   ; high_temperature_celsius : float option
   ; maximum_uv_index : float option
   ; conditions : Conditions.t
+  ; moon_phase : float option
   ; sunrise : Time_ns.t
   ; sunset : Time_ns.t
   }
@@ -76,6 +77,7 @@ let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) =
       @ List.filter_map hourly_forecasts ~f:(fun forecast -> forecast.uv_index)
       |> List.max_elt ~compare:Float.compare
   ; conditions
+  ; moon_phase = daily.moon_phase
   ; sunrise
   ; sunset
   }

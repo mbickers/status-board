@@ -45,6 +45,7 @@ module Daily : sig
     { date : Date.t
     ; sunrise : Time_ns.Alternate_sexp.t option
     ; sunset : Time_ns.Alternate_sexp.t option
+    ; moon_phase : float option
     }
   [@@deriving sexp]
 end

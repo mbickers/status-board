@@ -67,6 +67,29 @@ let fahrenheit_text = function
 
 let celsius_of_fahrenheit fahrenheit = (fahrenheit -. 32.) *. 5. /. 9.
 
+let moon_fill
+      ~light_fill
+      ~dark_fill
+      ~center:(center_x, center_y)
+      ~radius
+      ~phase
+      ((pixel_x, pixel_y) as point)
+  =
+  let x = Float.of_int (pixel_x - center_x) in
+  let y = pixel_y - center_y in
+  let half_width = Float.sqrt (Float.of_int ((radius * radius) - (y * y))) in
+  let terminator_x = Float.cos (2. *. Float.pi *. phase) *. half_width in
+  let is_light =
+    match Float.compare phase 0. <= 0 || Float.compare phase 1. >= 0 with
+    | true -> false
+    | false when Float.compare phase 0.5 <= 0 -> Float.compare x terminator_x >= 0
+    | false -> Float.compare x (-.terminator_x) <= 0
+  in
+  match is_light with
+  | true -> light_fill point
+  | false -> dark_fill point
+;;
+
 let draw_cloud
       context
       ~fill
@@ -185,11 +208,13 @@ let draw
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
   let black = Fill.solid `b in
-  let alt_fill = Fill.bayer_exn ~size:16 ~white_frac:0.79 in
+  let alt_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:0.79 in
+  let moon_dark_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
+  let day_land_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.) in
   let land_fill =
     match is_night with
     | true -> alt_fill
-    | false -> Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
+    | false -> day_land_fill
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
   let manhattan_w = 220
@@ -346,8 +371,34 @@ let draw
   let sun_moon_center =
     Float.iround_nearest_exn sun_moon_x, Float.iround_nearest_exn sun_moon_y
   in
-  circle context ~fill:alt_fill ~center:sun_moon_center ~radius:sun_moon_radius;
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
+  let sun_moon_fill =
+    match is_night, weather.moon_phase with
+    | false, _ | true, None -> alt_fill
+    | true, Some phase ->
+      moon_fill
+        ~light_fill:alt_fill
+        ~dark_fill:moon_dark_fill
+        ~center:sun_moon_center
+        ~radius:sun_moon_radius
+        ~phase
+  in
+  (match is_night with
+   | true -> ()
+   | false ->
+     let tick_stroke = Stroke.create alt_fill 5 in
+     let point distance angle =
+       ( Float.of_int sun_moon_center_x +. (Float.cos angle *. Float.of_int distance)
+       , Float.of_int sun_moon_center_y +. (Float.sin angle *. Float.of_int distance) )
+     in
+     List.iter (List.range 0 8) ~f:(fun index ->
+       let angle = Float.of_int index *. Float.pi /. 4. in
+       draw_line
+         context
+         ~stroke:tick_stroke
+         (point (sun_moon_radius + 8) angle)
+         (point (sun_moon_radius + 20) angle)));
+  circle context ~fill:sun_moon_fill ~center:sun_moon_center ~radius:sun_moon_radius;
   let temperature_text = fahrenheit_text weather.current_temperature_celsius
   and low_high_text =
     [ "l" ^ fahrenheit_text weather.low_temperature_celsius
@@ -720,6 +771,7 @@ let render input cache =
         ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
         ; maximum_uv_index = Some 10.
         ; conditions = Weather_info.Conditions.Not_cloudy
+        ; moon_phase = Some 0.25
         ; sunrise =
             Time_ns.occurrence
               `First_after_or_at
@@ -751,6 +803,7 @@ let render input cache =
         ; conditions =
             Weather_info.Conditions.Cloudy
               { rain = true; snow = true; thunderstorm = true }
+        ; moon_phase = None
         ; sunrise =
             Time_ns.occurrence
               `First_after_or_at

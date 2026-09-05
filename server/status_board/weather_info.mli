@@ -20,6 +20,7 @@ type t =
   ; high_temperature_celsius : float option
   ; maximum_uv_index : float option
   ; conditions : Conditions.t
+  ; moon_phase : float option
   ; sunrise : Time_ns.t
   ; sunset : Time_ns.t
   }

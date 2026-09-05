@@ -60,6 +60,7 @@ module Daily = struct
     { date : Date.t
     ; sunrise : Time_ns.Alternate_sexp.t option
     ; sunset : Time_ns.Alternate_sexp.t option
+    ; moon_phase : float option
     }
   [@@deriving sexp]
 end
@@ -115,6 +116,7 @@ module Raw = struct
       { time : string list
       ; sunrise : string option list
       ; sunset : string option list
+      ; moon_phase : float option list
       }
     [@@deriving yojson] [@@yojson.allow_extra_fields]
   end
@@ -206,8 +208,12 @@ let parse_forecast (forecast : Raw.Forecast.t) =
   in
   let%map.Or_error daily =
     Or_error.try_with (fun () ->
-      List.map3_exn daily_times sunrises sunsets ~f:(fun date sunrise sunset ->
-        { Daily.date; sunrise; sunset }))
+      List.map3_exn
+        daily_times
+        sunrises
+        (List.zip_exn sunsets forecast.daily.moon_phase)
+        ~f:(fun date sunrise (sunset, moon_phase) ->
+          { Daily.date; sunrise; sunset; moon_phase }))
   in
   { Forecast.timezone = forecast.timezone
   ; current =
@@ -243,7 +249,7 @@ let fetch_weather ~coordinates () =
       (fetch
          ~url:
            [%string
-             "https://api.open-meteo.com/v1/forecast?latitude=%{latitude#Float}&longitude=%{longitude#Float}&current=temperature_2m,weather_code,uv_index&hourly=temperature_2m,precipitation_probability,weather_code,uv_index&daily=sunrise,sunset&timezone=auto&forecast_hours=25"]
+             "https://api.open-meteo.com/v1/forecast?latitude=%{latitude#Float}&longitude=%{longitude#Float}&current=temperature_2m,weather_code,uv_index&hourly=temperature_2m,precipitation_probability,weather_code,uv_index&daily=sunrise,sunset,moon_phase&timezone=auto&forecast_hours=25"]
          ~decoder:Raw.Forecast.t_of_yojson)
       (fetch
          ~url:
