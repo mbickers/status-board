@@ -1,6 +1,7 @@
 open! Core
 open! Async
 
+val request_origin : Cohttp.Request.t -> string Or_error.t
 val get_body : string -> string Deferred.Or_error.t
 
 val respond_string

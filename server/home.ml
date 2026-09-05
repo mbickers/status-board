@@ -639,8 +639,7 @@ let draw
   image
 ;;
 
-type debug_preset = Dense_text_night
-
+let dense_text_night_preset = "dense text + night"
 let weather_coordinates = { Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
 let query_weather cache = Weather.query cache ~coordinates:weather_coordinates
 
@@ -697,7 +696,7 @@ let render input cache =
         cache
         ~device_status:{ Renderer.Device_status.battery_voltage = Some 4.1 }
         ~now
-    | Preview (Some Dense_text_night) ->
+    | Preview (Some preset) when String.equal preset dense_text_night_preset ->
       let%bind weather_result = query_weather cache in
       let%bind.Deferred.Or_error weather =
         Latest_result.latest_success weather_result
@@ -773,6 +772,7 @@ let render input cache =
            ; marcy_status
            ; now
            })
+    | Preview (Some preset) -> Deferred.Or_error.errorf "Unknown debug preset %S" preset
   in
   let { Draw_inputs.device_status
       ; weather
@@ -804,12 +804,12 @@ let render input cache =
       ~marcy_status
       ~now
   in
-  return (Ok { Renderer.Render.buffer; time_until_refresh = Time_ns.Span.of_sec 30. })
+  return (Ok buffer)
 ;;
 
 let renderer =
-  { Renderer.debug_presets = [ Dense_text_night ]
-  ; debug_preset_name = (fun Dense_text_night -> "dense text + night")
+  { Renderer.refresh_interval = Time_ns.Span.of_sec 30.
+  ; debug_presets = [ dense_text_night_preset ]
   ; render
   }
 ;;

@@ -6,33 +6,23 @@
   <title>Preview</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; }
+    .presets { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+    .presets [aria-current="page"] { font-weight: bold; }
     .display { border: 1px solid #888; image-rendering: pixelated; }
-    dt { font-weight: 600; margin-top: 1rem; }
-    dd { margin-left: 0; }
   </style>
 </head>
 <body>
-  <form method="get">
-    <label for="preset">Debug preset</label>
-    <select id="preset" name="preset" onchange="this.form.submit()">
-      <option value=""{{#no_debug_preset_selected}} selected{{/no_debug_preset_selected}}>None</option>
-      {{#debug_presets}}
-      <option value="{{name}}"{{#selected}} selected{{/selected}}>{{name}}</option>
-      {{/debug_presets}}
-    </select>
-  </form>
+  <nav class="presets" aria-label="Debug presets">
+    <a href="{{default_url}}"{{#default_selected}} aria-current="page"{{/default_selected}}>default</a>
+    {{#debug_presets}}
+    <a href="{{url}}"{{#selected}} aria-current="page"{{/selected}}>{{name}}</a>
+    {{/debug_presets}}
+  </nav>
   <img
     class="display"
     src="{{image_url}}"
-    width="{{display_width_px}}"
-    height="{{display_height_px}}"
     alt="Rendered screen preview">
-  <dl>
-    <dt>Time until refresh</dt><dd>{{refresh_seconds}} seconds</dd>
-    <dt>Display resolution</dt><dd>{{display_width_px}} × {{display_height_px}} pixels</dd>
-  </dl>
   <script>
-    setTimeout(() => window.location.reload(), {{refresh_milliseconds}});
     {{{autoreload_script}}}
   </script>
 </body>

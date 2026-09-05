@@ -1,76 +1,59 @@
 open! Core
 open! Async
 
-type t =
-  { autoreload_script : string
-  ; cache : Cache.t
-  ; image_publisher : Image_publisher.t
-  ; renderers : Renderer.packed String.Map.t
-  ; template : Mustache.t
-  }
-
-let create ~autoreload_script ~cache ~image_publisher ~renderers =
-  let%bind.Or_error contents =
-    Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
-  in
-  let%map.Or_error template = Or_error.try_with (fun () -> Mustache.of_string contents) in
-  { autoreload_script; cache; image_publisher; renderers; template }
+let preview_url ~debug_preset =
+  match debug_preset with
+  | None -> "?"
+  | Some preset -> Uri.make ~query:[ "preset", [ preset ] ] () |> Uri.to_string
 ;;
 
-let page_html t ~image_url ~debug_preset ~debug_preset_names screen_render =
-  let refresh_seconds =
-    Time_ns.Span.to_sec screen_render.Renderer.Render.time_until_refresh
-  in
+let page_html ~autoreload_script ~template ~image_path ~debug_preset ~debug_presets =
   let template_data =
     `O
-      [ "image_url", `String image_url
-      ; "refresh_seconds", `String (Float.to_string_hum ~decimals:3 refresh_seconds)
-      ; ( "refresh_milliseconds"
-        , `String
-            (Float.to_string_hum ~decimals:0 (Float.max 0. refresh_seconds *. 1_000.)) )
-      ; "display_width_px", `String (Int.to_string screen_render.buffer.width)
-      ; "display_height_px", `String (Int.to_string screen_render.buffer.height)
-      ; "autoreload_script", `String t.autoreload_script
-      ; "no_debug_preset_selected", `Bool (Option.is_none debug_preset)
+      [ "image_url", `String image_path
+      ; "autoreload_script", `String autoreload_script
+      ; "default_url", `String (preview_url ~debug_preset:None)
+      ; "default_selected", `Bool (Option.is_none debug_preset)
       ; ( "debug_presets"
         , `A
-            (List.map debug_preset_names ~f:(fun name ->
+            (List.map debug_presets ~f:(fun preset ->
                `O
-                 [ "name", `String name
-                 ; "selected", `Bool (Option.equal String.equal debug_preset (Some name))
+                 [ "name", `String preset
+                 ; "url", `String (preview_url ~debug_preset:(Some preset))
+                 ; ( "selected"
+                   , `Bool (Option.equal String.equal debug_preset (Some preset)) )
                  ])) )
       ]
   in
-  Or_error.try_with (fun () -> Mustache.render t.template template_data)
+  Or_error.try_with (fun () -> Mustache.render template template_data)
 ;;
 
-let respond t ~request ~name =
-  match Map.find t.renderers name with
-  | Some renderer ->
-    let debug_preset = Uri.get_query_param (Cohttp.Request.uri request) "preset" in
-    let%bind screen_render = Renderer.render_preview renderer ~debug_preset t.cache in
-    let html =
-      let%bind.Or_error screen_render = screen_render in
-      let { Image_publisher.Publish_record.image_url; filename = _ } =
-        Image_publisher.publish t.image_publisher ~name ~buffer:screen_render.buffer
-      in
-      page_html
-        t
-        ~image_url
-        ~debug_preset
-        ~debug_preset_names:(Renderer.debug_preset_names renderer)
-        screen_render
+let respond ~autoreload_script ~image_path ~(renderer : Renderer.t) request =
+  let debug_preset =
+    Uri.get_query_param (Cohttp.Request.uri request) "preset"
+    |> Option.filter ~f:(Fn.non String.is_empty)
+  in
+  let image_path = image_path debug_preset in
+  match
+    let%bind.Or_error contents =
+      Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
     in
-    (match html with
-     | Ok html ->
-       Http.respond_string
-         ~headers:
-           (Cohttp.Header.of_list
-              [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
-         html
-     | Error error ->
-       Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error))
-  | None -> Http.respond_string ~status:`Not_found [%string "No renderer named %{name}"]
+    let%bind.Or_error template =
+      Or_error.try_with (fun () -> Mustache.of_string contents)
+    in
+    page_html
+      ~autoreload_script
+      ~template
+      ~image_path
+      ~debug_preset
+      ~debug_presets:renderer.debug_presets
+  with
+  | Ok html ->
+    Http.respond_string
+      ~headers:
+        (Cohttp.Header.of_list
+           [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
+      html
+  | Error error ->
+    Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
 ;;
-
-let renderer_names t = Map.keys t.renderers

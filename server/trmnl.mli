@@ -1,21 +1,10 @@
 open! Core
 open! Async
 
-type t
-
-val create
-  :  cache:Cache.t
-  -> image_publisher:Image_publisher.t
-  -> name:string
-  -> renderer:Renderer.packed
-  -> t
-
-val respond_setup
-  :  t
-  -> request:Cohttp.Request.t
-  -> Cohttp_async.Server.response_action Deferred.t
-
-val respond_display
-  :  t
-  -> request:Cohttp.Request.t
+val respond
+  :  base_url:string
+  -> image_path:(Renderer.Device_status.t -> string)
+  -> refresh_interval:Time_ns.Span.t
+  -> body:Cohttp_async.Body.t
+  -> Cohttp.Request.t
   -> Cohttp_async.Server.response_action Deferred.t

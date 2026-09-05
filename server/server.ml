@@ -3,25 +3,15 @@ open! Async
 
 let run ~cache_path ~port =
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
-  let image_publisher = Image_publisher.create () in
+  let home_renderer = Home.renderer in
   let cache = Cache.create ~path:cache_path in
-  let home_renderer = Renderer.Pack Home.renderer in
-  let trmnl = Trmnl.create ~cache ~image_publisher ~name:"home" ~renderer:home_renderer in
-  let%bind.Deferred.Or_error preview_handler =
-    Preview.create
-      ~autoreload_script:(Autoreload_on_restart.script autoreload)
-      ~cache
-      ~image_publisher
-      ~renderers:(String.Map.of_alist_exn [ "home", home_renderer ])
-    |> return
-  in
+  let image_path input = [%string "/image/home?%{Renderer.url_query_string input}"] in
   let%bind _server =
     Cohttp_async.Server.create_expert
       ~on_handler_error:`Raise
       (Tcp.Where_to_listen.of_port port)
       (fun ~body _ request ->
-         let method_ = Cohttp.Request.meth request
-         and path =
+         let path =
            request
            |> Cohttp.Request.uri
            |> Uri.path
@@ -29,39 +19,26 @@ let run ~cache_path ~port =
            |> String.chop_suffix_if_exists ~suffix:"/"
            |> String.split ~on:'/'
          in
-         (match path with
-          | "api" :: _ ->
-            let request_method = Cohttp.Code.string_of_method method_
-            and uri = Cohttp.Request.uri request |> Uri.to_string
-            and headers = Cohttp.Request.headers request |> Cohttp.Header.to_list in
-            [%log.global.info
-              "TRMNL request"
-                (request_method : string)
-                (uri : string)
-                (headers : (string * string) list)]
-          | _ -> ());
-         match method_, path with
-         | `GET, path
-           when List.equal
-                  String.equal
-                  path
-                  (Autoreload_on_restart.monitor_path autoreload) ->
+         (* I want to replace these repeated route and URL paths with a handler DSL. *)
+         match Cohttp.Request.meth request, path with
+         | `GET, [ "wait-for-restart" ] ->
            Autoreload_on_restart.respond autoreload request
-         | `GET, [ "preview"; name ] -> Preview.respond preview_handler ~request ~name
-         | `GET, [ "image"; name ] -> Image_publisher.respond image_publisher ~name
-         | `GET, [ "setup-image"; name ] ->
-           Image_publisher.respond_setup_image image_publisher ~name
-         | `GET, [ "api"; "setup" ] -> Trmnl.respond_setup trmnl ~request
-         | `GET, [ "api"; "display" ] -> Trmnl.respond_display trmnl ~request
-         | `POST, [ "api"; "log" ] ->
-           let%bind body = Cohttp_async.Body.to_string body in
-           [%log.global.error "TRMNL firmware log" (body : string)];
-           Http.respond_string ""
+         | `GET, [ "preview"; "home" ] ->
+           Preview.respond
+             ~autoreload_script:(Autoreload_on_restart.script autoreload)
+             ~image_path:(fun debug_preset -> image_path (Preview debug_preset))
+             ~renderer:home_renderer
+             request
+         | `GET, [ "image"; "home" ] ->
+           Renderer.respond ~cache ~renderer:home_renderer request
+         | _, "api" :: _ ->
+           Trmnl.respond
+             ~base_url:"/api"
+             ~image_path:(fun device_status -> image_path (Device device_status))
+             ~refresh_interval:home_renderer.refresh_interval
+             ~body
+             request
          | _ -> Http.respond_string ~status:`Not_found "Not found")
   in
-  Preview.renderer_names preview_handler
-  |> List.iter ~f:(fun name ->
-    let url = [%string "http://127.0.0.1:%{port#Int}/preview/%{name}"] in
-    [%log.global.info "Preview available" (url : string)]);
   Deferred.never ()
 ;;

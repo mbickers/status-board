@@ -1,56 +1,30 @@
 open! Core
 open! Async
 
-type t =
-  { cache : Cache.t
-  ; image_publisher : Image_publisher.t
-  ; name : string
-  ; renderer : Renderer.packed
-  }
-
-let create ~cache ~image_publisher ~name ~renderer =
-  { cache; image_publisher; name; renderer }
-;;
-
-let request_origin request =
+let parse_device_status request =
   let headers = Cohttp.Request.headers request in
-  let scheme =
-    Cohttp.Header.get headers "x-forwarded-proto" |> Option.value ~default:"http"
+  let battery_voltage =
+    match Cohttp.Header.get headers "battery-voltage" with
+    | None -> None
+    | Some battery_voltage ->
+      (match Or_error.try_with (fun () -> Float.of_string battery_voltage) with
+       | Ok battery_voltage -> Some battery_voltage
+       | Error error ->
+         [%log.global.error "Invalid TRMNL device status" (error : Error.t)];
+         None)
   in
-  match
-    Cohttp.Header.get headers "x-forwarded-host", Cohttp.Header.get headers "host"
-  with
-  | Some host, _ | None, Some host -> Ok [%string "%{scheme}://%{host}"]
-  | None, None -> Or_error.error_string "Request has no Host header"
+  { Renderer.Device_status.battery_voltage }
 ;;
 
-let device_status request =
-  let headers = Cohttp.Request.headers request in
-  match Cohttp.Header.get headers "battery-voltage" with
-  | Some battery_voltage ->
-    Or_error.try_with (fun () -> Float.of_string battery_voltage)
-    |> Or_error.map ~f:(fun battery_voltage ->
-      { Renderer.Device_status.battery_voltage = Some battery_voltage })
-  | None -> Ok { Renderer.Device_status.battery_voltage = None }
+(* The TRMNL API needs path with server. *)
+let image_url_with_origin ~image_path ~request =
+  let device_status = parse_device_status request in
+  let%map.Or_error origin = Http.request_origin request in
+  [%string "%{origin}%{image_path device_status}"]
 ;;
 
-let render_and_publish t ~request ~publish =
-  let device_status =
-    match device_status request with
-    | Ok device_status -> device_status
-    | Error error ->
-      [%log.global.error "Invalid TRMNL device status" (error : Error.t)];
-      { Renderer.Device_status.battery_voltage = None }
-  in
-  let%bind screen_render = Renderer.render_device t.renderer device_status t.cache in
-  return
-    (let%bind.Or_error screen_render = screen_render in
-     let%bind.Or_error origin = request_origin request in
-     let published =
-       publish t.image_publisher ~name:t.name ~buffer:screen_render.buffer
-     in
-     let { Image_publisher.Publish_record.image_url; filename = _ } = published in
-     Ok (screen_render, published, [%string "%{origin}%{image_url}"]))
+let unique_filename () =
+  Time_ns.now () |> Time_ns.to_int63_ns_since_epoch |> Int63.to_string
 ;;
 
 let respond_with_json response =
@@ -65,41 +39,53 @@ let respond_with_json response =
     Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
 ;;
 
-let respond_setup t ~request =
-  let%bind result =
-    render_and_publish t ~request ~publish:Image_publisher.publish_setup_image
+let respond ~base_url ~image_path ~refresh_interval ~body request =
+  let request_method = Cohttp.Request.meth request |> Cohttp.Code.string_of_method
+  and request_url = Cohttp.Request.uri request |> Uri.to_string
+  and headers = Cohttp.Request.headers request |> Cohttp.Header.to_list in
+  [%log.global.info
+    "TRMNL request"
+      (request_method : string)
+      (request_url : string)
+      (headers : (string * string) list)];
+  let path =
+    request |> Cohttp.Request.uri |> Uri.path |> String.chop_suffix_if_exists ~suffix:"/"
   in
-  respond_with_json
-    (let%map.Or_error _, published, image_url = result in
-     `Assoc
-       [ "status", `Int 200
-       ; "api_key", `String "status-board"
-       ; "friendly_id", `String "STATUS"
-       ; "image_url", `String image_url
-       ; "filename", `String published.filename
-       ])
-;;
-
-let respond_display t ~request =
-  let%bind result = render_and_publish t ~request ~publish:Image_publisher.publish in
-  respond_with_json
-    (let%map.Or_error screen_render, published, image_url = result in
-     let refresh_seconds =
-       screen_render.time_until_refresh |> Time_ns.Span.to_sec |> Float.iround_up_exn
-     in
-     `Assoc
-       [ "status", `Int 0
-       ; "filename", `String published.filename
-       ; "firmware_url", `Null
-       ; "firmware_version", `Null
-       ; "image_url", `String image_url
-       ; "image_url_timeout", `Int 0
-       ; "maximum_compatibility", `Bool false
-       ; "refresh_rate", `Int refresh_seconds
-       ; "reset_firmware", `Bool false
-       ; "special_function", `String "none"
-       ; "temperature_profile", `String "default"
-       ; "touchbar_mode", `String "tap"
-       ; "update_firmware", `Bool false
-       ])
+  match Cohttp.Request.meth request, path with
+  | `GET, path when String.equal path (base_url ^ "/setup") ->
+    respond_with_json
+      (let%map.Or_error image_url = image_url_with_origin ~image_path ~request in
+       `Assoc
+         [ "status", `Int 200
+         ; "api_key", `String "status-board"
+         ; "friendly_id", `String "STATUS"
+         ; "image_url", `String image_url
+         ; "filename", `String (unique_filename ())
+         ])
+  | `GET, path when String.equal path (base_url ^ "/display") ->
+    respond_with_json
+      (let%map.Or_error image_url = image_url_with_origin ~image_path ~request in
+       let refresh_seconds =
+         Time_ns.Span.to_sec refresh_interval |> Float.iround_up_exn
+       in
+       `Assoc
+         [ "status", `Int 0
+         ; "filename", `String (unique_filename ())
+         ; "firmware_url", `Null
+         ; "firmware_version", `Null
+         ; "image_url", `String image_url
+         ; "image_url_timeout", `Int 0
+         ; "maximum_compatibility", `Bool false
+         ; "refresh_rate", `Int refresh_seconds
+         ; "reset_firmware", `Bool false
+         ; "special_function", `String "none"
+         ; "temperature_profile", `String "default"
+         ; "touchbar_mode", `String "tap"
+         ; "update_firmware", `Bool false
+         ])
+  | `POST, path when String.equal path (base_url ^ "/log") ->
+    let%bind body = Cohttp_async.Body.to_string body in
+    [%log.global.error "TRMNL firmware log" (body : string)];
+    Http.respond_string ""
+  | _ -> Http.respond_string ~status:`Not_found "Not found"
 ;;

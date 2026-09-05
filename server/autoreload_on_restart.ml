@@ -12,8 +12,6 @@ let create ~monitor_path =
   }
 ;;
 
-let monitor_path t = t.monitor_path
-
 let respond t request =
   let uri = Cohttp.Request.uri request in
   match Uri.get_query_param uri "instance-id" with
