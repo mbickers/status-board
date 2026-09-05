@@ -15,11 +15,35 @@ module Realtime_feed = struct
   [@@deriving compare, sexp]
 end
 
+module Direction = struct
+  type t =
+    | North
+    | South
+  [@@deriving equal, sexp]
+end
+
+module Stop_id = struct
+  type t =
+    { station_id : string
+    ; direction : Direction.t
+    }
+  [@@deriving sexp]
+
+  let of_string stop_id =
+    match String.chop_suffix stop_id ~suffix:"N" with
+    | Some station_id -> Ok { station_id; direction = Direction.North }
+    | None ->
+      (match String.chop_suffix stop_id ~suffix:"S" with
+       | Some station_id -> Ok { station_id; direction = Direction.South }
+       | None -> Or_error.errorf "Stop ID has no direction: %s" stop_id)
+  ;;
+end
+
 module Arrival = struct
   type t =
     { route_id : string
     ; trip_id : string option
-    ; stop_id : string
+    ; stop_id : Stop_id.t
     ; arrives_at : Time_ns.Alternate_sexp.t
     }
   [@@deriving sexp]
@@ -53,7 +77,7 @@ end
 
 module Status = struct
   type t =
-    { stop_status_by_stop_id : Stop_status.t String.Map.t
+    { stop_status_by_station_id : Stop_status.t String.Map.t
     ; systemwide_alerts : Alert.t list
     }
   [@@deriving sexp]
@@ -80,13 +104,14 @@ let arrival
   =
   match trip.route_id, stop_time_update.stop_id, stop_time_update.arrival with
   | Some route_id, Some stop_id, Some { time = Some arrival_time; _ } ->
-    Or_error.map (time_ns_of_seconds_since_epoch arrival_time) ~f:(fun arrives_at ->
-      match Time_ns.compare arrives_at now < 0 with
-      | true -> None
-      | false ->
-        Some
-          ( station_id_of_stop_id stop_id
-          , { Arrival.route_id; trip_id = trip.trip_id; stop_id; arrives_at } ))
+    let%bind.Or_error arrives_at = time_ns_of_seconds_since_epoch arrival_time in
+    (match Time_ns.compare arrives_at now < 0 with
+     | true -> Ok None
+     | false ->
+       let%map.Or_error stop_id = Stop_id.of_string stop_id in
+       Some
+         ( stop_id.station_id
+         , { Arrival.route_id; trip_id = trip.trip_id; stop_id; arrives_at } ))
   | _ -> Ok None
 ;;
 
@@ -258,6 +283,6 @@ let query cache ~which_feeds =
        in
        stop_id, { Stop_status.upcoming_arrivals; alerts })
      |> String.Map.of_alist_or_error
-     |> Or_error.map ~f:(fun stop_status_by_stop_id ->
-       { Status.stop_status_by_stop_id; systemwide_alerts }))
+     |> Or_error.map ~f:(fun stop_status_by_station_id ->
+       { Status.stop_status_by_station_id; systemwide_alerts }))
 ;;

@@ -165,8 +165,8 @@ module Draw_inputs = struct
     ; west_station : Feeds.Citibike.Station.t
     ; barclay_station : Feeds.Citibike.Station.t
     ; fulton_station : Feeds.Citibike.Station.t
-    ; bedford_status : Feeds.Mta_subway.Stop_status.t
-    ; marcy_status : Feeds.Mta_subway.Stop_status.t
+    ; bedford_status : [ `J | `L | `M ] Subway_status.t
+    ; marcy_status : [ `J | `L | `M ] Subway_status.t
     ; now : Time_ns.t
     }
 end
@@ -279,7 +279,7 @@ let draw
   let available_bike_status_width, available_bike_status_height =
     available_bike_status_size
   and parking_status_width, parking_status_height = parking_status_size
-  and subway_status_width = Subway_status_box.width status_box_style in
+  and subway_status_width = Subway_status.width status_box_style in
   let geo_stroke_safe_padding = Stroke.safe_padding geo_stroke in
   let manhattan_left = screen_edge_padding + geo_stroke_safe_padding
   and manhattan_bottom = h - screen_edge_padding - geo_stroke_safe_padding in
@@ -293,34 +293,25 @@ let draw
     parking_grid_top - ((parking_status_height + base_padding) / 2)
   in
   let parking_grid_right = parking_grid_right_column + parking_status_width in
-  let l_fill : Fill.t = Fill.bayer_exn ~white_frac:(9. /. 16.)
-  and j_fill : Fill.t = Fill.bayer_exn ~white_frac:(1. /. 16.)
-  and m_fill : Fill.t = Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.) in
-  let bedford_rows =
-    [ { Subway_status_box.Row.bullet = "L", l_fill
-      ; route_ids = [ "L" ]
-      ; minimum_minutes = 11
-      ; westbound_mta_direction = "N"
-      }
-    ]
-  and marcy_rows =
-    [ { Subway_status_box.Row.bullet = "J", j_fill
-      ; route_ids = [ "J"; "Z" ]
-      ; minimum_minutes = 5
-      ; westbound_mta_direction = "S"
-      }
-    ; { bullet = "M", m_fill
-      ; route_ids = [ "M" ]
-      ; minimum_minutes = 5
-      ; westbound_mta_direction = "N"
-      }
-    ]
+  let l_fill : Graphics.Drawing.Fill.t =
+    Graphics.Drawing.Fill.bayer_exn ~white_frac:(9. /. 16.)
+  and j_fill : Graphics.Drawing.Fill.t =
+    Graphics.Drawing.Fill.bayer_exn ~white_frac:(1. /. 16.)
+  and m_fill : Graphics.Drawing.Fill.t =
+    Graphics.Drawing.Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.)
   in
-  let bedford_status_height =
-    Subway_status_box.height status_box_style ~row_count:(List.length bedford_rows)
-  and marcy_status_height =
-    Subway_status_box.height status_box_style ~row_count:(List.length marcy_rows)
+  let route_fill = function
+    | `L -> l_fill
+    | `J -> j_fill
+    | `M -> m_fill
   in
+  let display_route_text = function
+    | `L -> "L"
+    | `J -> "J"
+    | `M -> "M"
+  in
+  let bedford_status_height = Subway_status.height status_box_style bedford_status
+  and marcy_status_height = Subway_status.height status_box_style marcy_status in
   let brooklyn_height =
     base_padding
     + screen_edge_padding
@@ -550,22 +541,20 @@ let draw
     ; m_vert_x, m_houston_y
     ; m_vert_x, map_faded_top
     ];
-  Subway_status_box.draw
+  Subway_status.draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
     ~style:status_box_style
-    ~title:"bedford"
-    ~now
-    ~stop_status:bedford_status
-    ~rows:bedford_rows;
-  Subway_status_box.draw
+    ~display_route_text
+    ~route_fill
+    bedford_status;
+  Subway_status.draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
     ~style:status_box_style
-    ~title:"marcy"
-    ~now
-    ~stop_status:marcy_status
-    ~rows:marcy_rows;
+    ~display_route_text
+    ~route_fill
+    marcy_status;
   let bike_status_rx = subway_status_left - base_padding in
   available_bike_status
     context
@@ -649,6 +638,26 @@ let weather_coordinates =
 let query_weather cache = Feeds.Weather.query cache ~coordinates:weather_coordinates
 
 let live_draw_inputs cache ~device_status ~now =
+  let bedford_rows =
+    [ { Subway_status.Selection.display_route = `L
+      ; route_ids = [ "L" ]
+      ; minimum_minutes = 11
+      ; westbound_mta_direction = Feeds.Mta_subway.Direction.North
+      }
+    ]
+  and marcy_rows =
+    [ { Subway_status.Selection.display_route = `J
+      ; route_ids = [ "J"; "Z" ]
+      ; minimum_minutes = 5
+      ; westbound_mta_direction = Feeds.Mta_subway.Direction.South
+      }
+    ; { display_route = `M
+      ; route_ids = [ "M" ]
+      ; minimum_minutes = 5
+      ; westbound_mta_direction = Feeds.Mta_subway.Direction.North
+      }
+    ]
+  in
   let%bind citibike_result = Feeds.Citibike.query cache
   and mta_subway_status_result =
     Feeds.Mta_subway.query
@@ -671,9 +680,20 @@ let live_draw_inputs cache ~device_status ~now =
      and west_station = find_station "2170352212111402482"
      and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
      and fulton_station = find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
-     and bedford_status = Map.find_or_error mta_subway_status.stop_status_by_stop_id "L08"
+     and bedford_status =
+       Subway_status.create
+         mta_subway_status
+         ~now
+         ~station_id:"L08"
+         ~title:"bedford"
+         ~rows:bedford_rows
      and marcy_status =
-       Map.find_or_error mta_subway_status.stop_status_by_stop_id "M16"
+       Subway_status.create
+         mta_subway_status
+         ~now
+         ~station_id:"M16"
+         ~title:"marcy"
+         ~rows:marcy_rows
      in
      { Draw_inputs.device_status
      ; weather
@@ -751,28 +771,15 @@ let render input cache =
         ; last_reported = now
         }
       in
-      let arrivals ~route_id ~stop_id =
-        [ "N"; "S" ]
-        |> List.concat_map ~f:(fun direction ->
-          List.init 3 ~f:(fun _ ->
-            { Feeds.Mta_subway.Arrival.route_id
-            ; trip_id = None
-            ; stop_id = stop_id ^ direction
-            ; arrives_at =
-                Time_ns.add now (Time_ns.Span.of_int_min widest_two_digit_number)
-            }))
-      in
-      let bedford_status =
-        { Feeds.Mta_subway.Stop_status.upcoming_arrivals =
-            arrivals ~route_id:"L" ~stop_id:"L08"
-        ; alerts = []
-        }
-      and marcy_status =
-        { Feeds.Mta_subway.Stop_status.upcoming_arrivals =
-            arrivals ~route_id:"J" ~stop_id:"M16" @ arrivals ~route_id:"M" ~stop_id:"M16"
-        ; alerts = []
+      let row display_route =
+        let minutes = List.init 3 ~f:(fun _ -> widest_two_digit_number) in
+        { Subway_status.Row.display_route
+        ; westbound_minutes = minutes
+        ; eastbound_minutes = minutes
         }
       in
+      let bedford_status = { Subway_status.title = "bedford"; rows = [ row `L ] }
+      and marcy_status = { Subway_status.title = "marcy"; rows = [ row `J; row `M ] } in
       return
         (Ok
            { Draw_inputs.device_status = { battery_voltage = None }

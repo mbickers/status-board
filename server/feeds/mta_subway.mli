@@ -13,11 +13,25 @@ module Realtime_feed : sig
     | Staten_island_railway
 end
 
+module Direction : sig
+  type t =
+    | North
+    | South
+  [@@deriving equal]
+end
+
+module Stop_id : sig
+  type t =
+    { station_id : string
+    ; direction : Direction.t
+    }
+end
+
 module Arrival : sig
   type t =
     { route_id : string
     ; trip_id : string option
-    ; stop_id : string
+    ; stop_id : Stop_id.t
     ; arrives_at : Time_ns.Alternate_sexp.t
     }
 end
@@ -42,7 +56,7 @@ end
 
 module Status : sig
   type t =
-    { stop_status_by_stop_id : Stop_status.t String.Map.t
+    { stop_status_by_station_id : Stop_status.t String.Map.t
     ; systemwide_alerts : Alert.t list
     }
 end
