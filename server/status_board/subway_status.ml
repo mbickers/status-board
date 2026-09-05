@@ -8,7 +8,10 @@ module Row = struct
     }
 end
 
-type 'display_route t = { rows : 'display_route Row.t list }
+type 'display_route t =
+  { rows : 'display_route Row.t list
+  ; has_alert : bool
+  }
 
 module Selection = struct
   type 'display_route t =
@@ -50,7 +53,7 @@ let create (status : Feeds.Mta_subway.Status.t) ~now ~station_id ~rows =
       ; eastbound_minutes = minutes eastbound_direction
       })
   in
-  { rows }
+  { rows; has_alert = not (List.is_empty stop_status.alerts) }
 ;;
 
 let draw_bullet
@@ -246,7 +249,8 @@ let draw_row
 let width = Layout.width
 let height style t = (Layout.create style ~row_count:(List.length t.rows)).height
 
-let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows } =
+let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows; has_alert }
+  =
   let font = Status_box.Style.font style in
   let layout = Layout.create style ~row_count:(List.length rows) in
   let upper_left, lower_right =
@@ -262,5 +266,22 @@ let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows } 
         ~display_route_text
         ~route_fill
         ~center_y:(layout.first_row_center_y + (row_index * layout.row_height))
-        row))
+        row));
+  match has_alert with
+  | false -> ()
+  | true ->
+    let _, top = upper_left
+    and right, _ = lower_right in
+    let size = 30. in
+    let alert_text = "!!" in
+    let rendered = Graphics.Font.render_text font alert_text ~size in
+    Graphics.Drawing.text
+      ~halo:(3, Graphics.Drawing.Fill.solid `w)
+      context
+      ~font
+      ~fill:(Graphics.Drawing.Fill.solid `b)
+      ~origin_x:(right - rendered.width - 8 + rendered.origin_x)
+      ~baseline_y:(top - (rendered.height / 2) + rendered.baseline_y + 3)
+      ~size
+      alert_text
 ;;
