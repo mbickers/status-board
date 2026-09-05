@@ -2,6 +2,7 @@ open! Core
 open! Async
 
 let run ~cache_path ~port =
+  (* I want to replace repeated hardcoded route with a handler DSL. *)
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
   let home_renderer = Home.renderer in
   let cache = Cache.create ~path:cache_path in
@@ -19,7 +20,6 @@ let run ~cache_path ~port =
            |> String.chop_suffix_if_exists ~suffix:"/"
            |> String.split ~on:'/'
          in
-         (* I want to replace these repeated route and URL paths with a handler DSL. *)
          match Cohttp.Request.meth request, path with
          | `GET, [ "wait-for-restart" ] ->
            Autoreload_on_restart.respond autoreload request
