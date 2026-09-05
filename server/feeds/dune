@@ -1,0 +1,12 @@
+(library
+ (name feeds)
+ (libraries
+  core
+  async
+  cohttp-async
+  mta_protobuf
+  ocaml-protoc-plugin
+  uri
+  yojson)
+ (preprocess
+  (pps ppx_jane ppx_yojson_conv)))

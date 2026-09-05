@@ -13,7 +13,7 @@ let parse_device_status request =
          [%log.global.error "Invalid TRMNL device status" (error : Error.t)];
          None)
   in
-  { Renderer.Device_status.battery_voltage }
+  { Status_board.Device_status.battery_voltage }
 ;;
 
 (* The TRMNL API needs path with server. *)

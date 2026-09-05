@@ -1,0 +1,2 @@
+8feff2c5499e0ff08777e203e49ef702e07be0a8376b8bb2126add311a709299 https://raw.githubusercontent.com/google/transit/474750a163088673df718838d4a1bb093391f9af/gtfs-realtime/proto/gtfs-realtime.proto server/feeds/mta_protobuf/gtfs-realtime.proto
+f1ab02956343fbaf57cb49e8cb2cb9ebeccf6c74a26632dcac5c8b2f32455b08 https://raw.githubusercontent.com/OneBusAway/onebusaway-gtfs-realtime-api/b134b5428a2f63b511b80f2a6c534e0e8028ad54/src/main/proto/com/google/transit/realtime/gtfs-realtime-NYCT.proto server/feeds/mta_protobuf/gtfs-realtime-NYCT.proto

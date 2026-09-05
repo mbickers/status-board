@@ -2,7 +2,7 @@ open! Core
 
 module Row = struct
   type t =
-    { bullet : string * Drawing.Fill.t
+    { bullet : string * Graphics.Drawing.Fill.t
     ; route_ids : string list
     ; minimum_minutes : int
     ; westbound_mta_direction : string
@@ -25,12 +25,12 @@ let draw_bullet
         ((x - center_x) * (x - center_x)) + ((y - center_y) * (y - center_y))
         <= radius * radius
       with
-      | true -> Drawing.Context.write context (x, y) (fill (x, y))
+      | true -> Graphics.Drawing.Context.write context (x, y) (fill (x, y))
       | false -> ()
     done
   done;
-  let rendered_text = Font.render_text font label ~size:font_size in
-  Drawing.text
+  let rendered_text = Graphics.Font.render_text font label ~size:font_size in
+  Graphics.Drawing.text
     context
     ~font
     ~fill:text_fill
@@ -47,7 +47,7 @@ let columns
       ~padding
       ~horizontal_padding_between_text
   =
-  let width, _ = Drawing.Context.size context in
+  let width, _ = Graphics.Drawing.Context.size context in
   let left = bullet_center_x + bullet_radius + padding
   and right = width - padding in
   let westbound_right = ((left + right) / 2) - (horizontal_padding_between_text / 2) in
@@ -71,7 +71,7 @@ let draw_directions
       ~padding
       ~horizontal_padding_between_text
   in
-  let stroke = Drawing.Stroke.solid `b 2 in
+  let stroke = Graphics.Drawing.Stroke.solid `b 2 in
   let draw_arrow direction ~center_x =
     let tip_x, tail_x, arrowhead_x =
       match direction with
@@ -79,13 +79,13 @@ let draw_directions
       | `Right -> center_x + 9, center_x - 9, center_x + 3
     in
     let tip = Float.of_int tip_x, center_y in
-    Drawing.draw_line context ~stroke (Float.of_int tail_x, center_y) tip;
-    Drawing.draw_line
+    Graphics.Drawing.draw_line context ~stroke (Float.of_int tail_x, center_y) tip;
+    Graphics.Drawing.draw_line
       context
       ~stroke
       tip
       (Float.of_int arrowhead_x, center_y -. half_height);
-    Drawing.draw_line
+    Graphics.Drawing.draw_line
       context
       ~stroke
       tip
@@ -105,7 +105,7 @@ let draw_row
       ~bullet_font_size
       ~departure_font_size
       ~now
-      ~(stop_status : Mta_subway.Stop_status.t)
+      ~(stop_status : Feeds.Mta_subway.Stop_status.t)
       ~center_y
       (row : Row.t)
   =
@@ -133,7 +133,7 @@ let draw_row
     match String.equal row.westbound_mta_direction "N" with
     | true -> "S"
     | false -> "N"
-  and bullet_text_fill = Drawing.Fill.solid `w
+  and bullet_text_fill = Graphics.Drawing.Fill.solid `w
   and text_left, westbound_right, eastbound_left, text_right =
     columns
       context
@@ -143,11 +143,11 @@ let draw_row
       ~horizontal_padding_between_text
   in
   let draw_centered_text text ~left ~right =
-    let rendered_text = Font.render_text font text ~size:departure_font_size in
-    Drawing.text
+    let rendered_text = Graphics.Font.render_text font text ~size:departure_font_size in
+    Graphics.Drawing.text
       context
       ~font
-      ~fill:(Drawing.Fill.solid `b)
+      ~fill:(Graphics.Drawing.Fill.solid `b)
       ~origin_x:
         (left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
       ~baseline_y:(center_y - (rendered_text.height / 2) + rendered_text.baseline_y)
@@ -197,7 +197,7 @@ module Layout = struct
       Status_box.Style.horizontal_padding_between_text style
     and departure_font_size = Status_box.Style.primary_font_size style in
     let maximum_direction_text_width, _ =
-      Font.max_width
+      Graphics.Font.max_width
         font
         [ `Number (0, 99); `String ","; `Number (0, 99); `String ","; `Number (0, 99) ]
         ~size:departure_font_size
@@ -217,7 +217,7 @@ module Layout = struct
     and departure_font_size = Status_box.Style.primary_font_size style in
     let arrow_center_y = Float.of_int padding +. arrow_half_height
     and departure_line_height =
-      (Font.render_text font "0" ~size:departure_font_size).height
+      (Graphics.Font.render_text font "0" ~size:departure_font_size).height
     in
     let first_row_center_y =
       Int.of_float (arrow_center_y +. arrow_half_height)
@@ -264,7 +264,9 @@ let draw context ~anchor ~style ~title ~now ~stop_status ~rows =
     Layout.create style ~row_count:(List.length rows)
   in
   let bullet_center_x = padding + bullet_radius in
-  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:(width, height) in
+  let upper_left, lower_right =
+    Graphics.Drawing.Anchor.resolve anchor ~size:(width, height)
+  in
   Status_box.draw context upper_left lower_right ~style ~title ~f:(fun context ~fill:_ ->
     draw_directions
       context

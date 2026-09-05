@@ -2,8 +2,8 @@ open! Core
 open! Async
 
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
-  let rendered_text = Font.render_text font text ~size in
-  Drawing.text
+  let rendered_text = Graphics.Font.render_text font text ~size in
+  Graphics.Drawing.text
     context
     ~font
     ~fill
@@ -18,12 +18,12 @@ let availability_status
       ~style
       ~title
       ~box_size
-      ~(station : Citibike.Station.t)
+      ~(station : Feeds.Citibike.Station.t)
       ~is_enabled
       ~f
       anchor
   =
-  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size
+  let upper_left, lower_right = Graphics.Drawing.Anchor.resolve anchor ~size:box_size
   and usable_capacity =
     station.capacity - station.bikes_disabled - station.docks_disabled
   in
@@ -40,7 +40,7 @@ let availability_status
     ~title
     ~fill:
       (match is_enabled with
-       | true -> Drawing.Fill.fractional ~frac ~frontier_angle_degrees:15.
+       | true -> Graphics.Drawing.Fill.fractional ~frac ~frontier_angle_degrees:15.
        | false -> fun _ -> Status_box.Style.error_fill style)
     ~f
 ;;
@@ -50,7 +50,7 @@ let available_bike_status
       ~style
       ~title
       ~box_size
-      ~(station : Citibike.Station.t)
+      ~(station : Feeds.Citibike.Station.t)
       anchor
   =
   let font = Status_box.Style.font style in
@@ -62,7 +62,7 @@ let available_bike_status
     ~station
     ~is_enabled:station.is_renting
     ~f:(fun context ~fill ->
-      let width, height = Drawing.Context.size context in
+      let width, height = Graphics.Drawing.Context.size context in
       let count_size = Status_box.Style.primary_font_size style
       and base_padding = Status_box.Style.base_padding style
       and horizontal_padding_between_text =
@@ -73,7 +73,7 @@ let available_bike_status
       and right = width - base_padding in
       match station.is_renting with
       | true ->
-        let fill = Drawing.Fill.invert fill in
+        let fill = Graphics.Drawing.Fill.invert fill in
         let middle = (left + right) / 2 in
         let bikes_right = middle - (horizontal_padding_between_text / 2)
         and ebikes_left = middle + (horizontal_padding_between_text / 2) in
@@ -98,8 +98,11 @@ let available_bike_status
           ~right
           ebikes_available;
         let ebike_label_size = 22. in
-        let rendered_ebikes = Font.render_text font ebikes_available ~size:count_size
-        and rendered_ebike_label = Font.render_text font "e" ~size:ebike_label_size in
+        let rendered_ebikes =
+          Graphics.Font.render_text font ebikes_available ~size:count_size
+        and rendered_ebike_label =
+          Graphics.Font.render_text font "e" ~size:ebike_label_size
+        in
         draw_centered_text
           context
           ~font
@@ -118,7 +121,14 @@ let available_bike_status
     anchor
 ;;
 
-let parking_status context ~style ~title ~box_size ~(station : Citibike.Station.t) anchor =
+let parking_status
+      context
+      ~style
+      ~title
+      ~box_size
+      ~(station : Feeds.Citibike.Station.t)
+      anchor
+  =
   let font = Status_box.Style.font style in
   availability_status
     context
@@ -131,12 +141,12 @@ let parking_status context ~style ~title ~box_size ~(station : Citibike.Station.
       match station.is_returning with
       | false -> ()
       | true ->
-        let width, height = Drawing.Context.size context in
+        let width, height = Graphics.Drawing.Context.size context in
         let base_padding = Status_box.Style.base_padding style in
         draw_centered_text
           context
           ~font
-          ~fill:(Drawing.Fill.invert fill)
+          ~fill:(Graphics.Drawing.Fill.invert fill)
           ~size:(Status_box.Style.primary_font_size style)
           ~baseline_y:(height - Status_box.Style.baseline_padding style)
           ~left:base_padding
@@ -147,16 +157,16 @@ let parking_status context ~style ~title ~box_size ~(station : Citibike.Station.
 
 module Draw_inputs = struct
   type t =
-    { device_status : Renderer.Device_status.t
-    ; weather : Weather.Summary.t
-    ; bridge_station : Citibike.Station.t
-    ; roebling_station : Citibike.Station.t
-    ; vesey_station : Citibike.Station.t
-    ; west_station : Citibike.Station.t
-    ; barclay_station : Citibike.Station.t
-    ; fulton_station : Citibike.Station.t
-    ; bedford_status : Mta_subway.Stop_status.t
-    ; marcy_status : Mta_subway.Stop_status.t
+    { device_status : Status_board.Device_status.t
+    ; weather : Feeds.Weather.Summary.t
+    ; bridge_station : Feeds.Citibike.Station.t
+    ; roebling_station : Feeds.Citibike.Station.t
+    ; vesey_station : Feeds.Citibike.Station.t
+    ; west_station : Feeds.Citibike.Station.t
+    ; barclay_station : Feeds.Citibike.Station.t
+    ; fulton_station : Feeds.Citibike.Station.t
+    ; bedford_status : Feeds.Mta_subway.Stop_status.t
+    ; marcy_status : Feeds.Mta_subway.Stop_status.t
     ; now : Time_ns.t
     }
 end
@@ -171,7 +181,8 @@ let day_night_phase weather ~at =
     |> Time_ns.Span.to_sec
     |> fun seconds -> seconds /. Time_ns.Span.to_sec Time_ns.Span.day
   in
-  let sunrise = time_of_day_frac (Time_ns.sub weather.Weather.Summary.sunrise twilight)
+  let sunrise =
+    time_of_day_frac (Time_ns.sub weather.Feeds.Weather.Summary.sunrise twilight)
   and sunset = time_of_day_frac (Time_ns.add weather.sunset twilight)
   and at_frac = time_of_day_frac at in
   let is_night =
@@ -213,7 +224,7 @@ let draw
       ~marcy_status
       ~now
   =
-  let open Drawing.O in
+  let open Graphics.Drawing.O in
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
   let secondary_text_size = 31. in
@@ -253,7 +264,7 @@ let draw
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let maximum_citibike_count_width, _ =
-    Font.max_width
+    Graphics.Font.max_width
       font
       [ `Number (0, 99) ]
       ~size:(Status_box.Style.primary_font_size status_box_style)
@@ -448,15 +459,17 @@ let draw
     |> String.concat ~sep:"  "
   and temperature_size = 70.
   and text_spacing = 4 in
-  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
-  and rendered_low_high = Font.render_text font low_high_text ~size:secondary_text_size
+  let rendered_temperature =
+    Graphics.Font.render_text font temperature_text ~size:temperature_size
+  and rendered_low_high =
+    Graphics.Font.render_text font low_high_text ~size:secondary_text_size
   and rendered_uv =
     Option.bind max_uv ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
         let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (text, Font.render_text font text ~size:secondary_text_size))
+        Some (text, Graphics.Font.render_text font text ~size:secondary_text_size))
   in
   let uv_height =
     Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
@@ -612,7 +625,7 @@ let draw
     (Anchor.Ul
        (parking_grid_right_column, parking_grid_top + parking_status_height + base_padding));
   let voltage_text =
-    match device_status.Renderer.Device_status.battery_voltage with
+    match device_status.Status_board.Device_status.battery_voltage with
     | Some battery_voltage ->
       [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
     | None -> "voltage unknown"
@@ -622,7 +635,7 @@ let draw
   and status_text_padding = 8 in
   let status_text_fill = Fill.bayer_exn ~white_frac:0.5 in
   let draw_status_text ~origin_x string =
-    let rendered_text = Font.render_text font string ~size:secondary_text_size in
+    let rendered_text = Graphics.Font.render_text font string ~size:secondary_text_size in
     text
       context
       ~font
@@ -640,22 +653,26 @@ let draw
 ;;
 
 let dense_text_night_preset = "dense text + night"
-let weather_coordinates = { Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
-let query_weather cache = Weather.query cache ~coordinates:weather_coordinates
+
+let weather_coordinates =
+  { Feeds.Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
+;;
+
+let query_weather cache = Feeds.Weather.query cache ~coordinates:weather_coordinates
 
 let live_draw_inputs cache ~device_status ~now =
-  let%bind citibike_result = Citibike.query cache
+  let%bind citibike_result = Feeds.Citibike.query cache
   and mta_subway_status_result =
-    Mta_subway.query
+    Feeds.Mta_subway.query
       cache
-      ~which_feeds:[ Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
+      ~which_feeds:[ Feeds.Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
   and weather_result = query_weather cache in
   return
     (let%bind.Or_error citibike_stations =
-       Latest_result.latest_success citibike_result
+       Feeds.Latest_result.latest_success citibike_result
        |> Or_error.map ~f:(fun completed -> completed.value)
      and weather =
-       Latest_result.latest_success weather_result
+       Feeds.Latest_result.latest_success weather_result
        |> Or_error.map ~f:(fun completed -> completed.value)
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
@@ -686,20 +703,21 @@ let live_draw_inputs cache ~device_status ~now =
 let render input cache =
   let now = Time_ns.now () in
   let%bind.Deferred.Or_error font =
-    Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
+    Graphics.Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
   in
   let%bind.Deferred.Or_error draw_inputs =
     match input with
-    | Renderer.Input.Device device_status -> live_draw_inputs cache ~device_status ~now
+    | Status_board.Input.Device device_status ->
+      live_draw_inputs cache ~device_status ~now
     | Preview None ->
       live_draw_inputs
         cache
-        ~device_status:{ Renderer.Device_status.battery_voltage = Some 4.1 }
+        ~device_status:{ Status_board.Device_status.battery_voltage = Some 4.1 }
         ~now
     | Preview (Some preset) when String.equal preset dense_text_night_preset ->
       let%bind weather_result = query_weather cache in
       let%bind.Deferred.Or_error weather =
-        Latest_result.latest_success weather_result
+        Feeds.Latest_result.latest_success weather_result
         |> Or_error.map ~f:(fun completed -> completed.value)
         |> return
       in
@@ -711,11 +729,11 @@ let render input cache =
           ~zone:display_zone
       in
       let _, widest_two_digit_number =
-        Font.max_width font [ `Number (12, 99) ] ~size:20.
+        Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
       in
       let widest_two_digit_number = Int.of_string widest_two_digit_number in
       let station =
-        { Citibike.Station.station_id = "dense"
+        { Feeds.Citibike.Station.station_id = "dense"
         ; name = "dense"
         ; latitude = 0.
         ; longitude = 0.
@@ -735,7 +753,7 @@ let render input cache =
         [ "N"; "S" ]
         |> List.concat_map ~f:(fun direction ->
           List.init 3 ~f:(fun _ ->
-            { Mta_subway.Arrival.route_id
+            { Feeds.Mta_subway.Arrival.route_id
             ; trip_id = None
             ; stop_id = stop_id ^ direction
             ; arrives_at =
@@ -743,11 +761,12 @@ let render input cache =
             }))
       in
       let bedford_status =
-        { Mta_subway.Stop_status.upcoming_arrivals = arrivals ~route_id:"L" ~stop_id:"L08"
+        { Feeds.Mta_subway.Stop_status.upcoming_arrivals =
+            arrivals ~route_id:"L" ~stop_id:"L08"
         ; alerts = []
         }
       and marcy_status =
-        { Mta_subway.Stop_status.upcoming_arrivals =
+        { Feeds.Mta_subway.Stop_status.upcoming_arrivals =
             arrivals ~route_id:"J" ~stop_id:"M16" @ arrivals ~route_id:"M" ~stop_id:"M16"
         ; alerts = []
         }
@@ -807,8 +826,8 @@ let render input cache =
   return (Ok buffer)
 ;;
 
-let renderer =
-  { Renderer.refresh_interval = Time_ns.Span.of_sec 30.
+let status_board =
+  { Status_board.refresh_interval = Time_ns.Span.of_sec 30.
   ; debug_presets = [ dense_text_night_preset ]
   ; render
   }

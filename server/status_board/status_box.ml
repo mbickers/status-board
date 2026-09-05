@@ -2,10 +2,10 @@ open! Core
 
 module Style = struct
   type t =
-    { font : Font.t
+    { font : Graphics.Font.t
     ; base_padding : int
     ; primary_font_size : float
-    ; error_fill : Drawing.Fill.t
+    ; error_fill : Graphics.Drawing.Fill.t
     }
 
   let create ~font ~base_padding ~primary_font_size ~error_fill =
@@ -21,7 +21,7 @@ module Style = struct
 end
 
 let draw
-      ?(fill = fun _ -> Drawing.Fill.solid `w)
+      ?(fill = fun _ -> Graphics.Drawing.Fill.solid `w)
       context
       (left, top)
       (right, bottom)
@@ -31,9 +31,12 @@ let draw
   =
   let radius = 10
   and stroke_width = 4
-  and stroke_fill = Drawing.Fill.solid `b in
+  and stroke_fill = Graphics.Drawing.Fill.solid `b in
   let box_context =
-    Drawing.Context.crop context ~offset:(left, top) ~size:(right - left, bottom - top)
+    Graphics.Drawing.Context.crop
+      context
+      ~offset:(left, top)
+      ~size:(right - left, bottom - top)
   in
   let fill = fill box_context in
   let inside ~inset (x, y) =
@@ -58,7 +61,7 @@ let draw
     done
   in
   iter_pixels ~f:(fun ((x, y) as point) ~is_interior ->
-    Drawing.Context.write
+    Graphics.Drawing.Context.write
       context
       point
       (match is_interior with
@@ -68,15 +71,15 @@ let draw
   iter_pixels ~f:(fun point ~is_interior ->
     match is_interior with
     | true -> ()
-    | false -> Drawing.Context.write context point (stroke_fill point));
+    | false -> Graphics.Drawing.Context.write context point (stroke_fill point));
   let font = Style.font style
   and title_font_size = 17. in
-  let rendered_title = Font.render_text font title ~size:title_font_size in
-  Drawing.text
-    ~halo:(3, Drawing.Fill.solid `w)
+  let rendered_title = Graphics.Font.render_text font title ~size:title_font_size in
+  Graphics.Drawing.text
+    ~halo:(3, Graphics.Drawing.Fill.solid `w)
     context
     ~font
-    ~fill:(Drawing.Fill.solid `b)
+    ~fill:(Graphics.Drawing.Fill.solid `b)
     ~origin_x:(left + radius + 2 + rendered_title.origin_x)
     ~baseline_y:(top - 2 + rendered_title.baseline_y)
     ~size:title_font_size

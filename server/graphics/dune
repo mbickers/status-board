@@ -1,0 +1,5 @@
+(library
+ (name graphics)
+ (libraries core imagelib stb_truetype)
+ (preprocess
+  (pps ppx_jane)))

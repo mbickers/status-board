@@ -4,12 +4,11 @@
   core
   async
   cohttp-async
-  imagelib
+  feeds
+  graphics
   mustache
-  stb_truetype
+  status_board
   uri
-  yojson
-  mta_protobuf
-  ocaml-protoc-plugin)
+  yojson)
  (preprocess
-  (pps ppx_jane ppx_yojson_conv)))
+  (pps ppx_jane)))

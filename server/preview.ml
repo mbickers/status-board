@@ -28,7 +28,7 @@ let page_html ~autoreload_script ~template ~image_path ~debug_preset ~debug_pres
   Or_error.try_with (fun () -> Mustache.render template template_data)
 ;;
 
-let respond ~autoreload_script ~image_path ~(renderer : Renderer.t) request =
+let respond ~autoreload_script ~image_path ~(status_board : Status_board.t) request =
   let debug_preset =
     Uri.get_query_param (Cohttp.Request.uri request) "preset"
     |> Option.filter ~f:(Fn.non String.is_empty)
@@ -46,7 +46,7 @@ let respond ~autoreload_script ~image_path ~(renderer : Renderer.t) request =
       ~template
       ~image_path
       ~debug_preset
-      ~debug_presets:renderer.debug_presets
+      ~debug_presets:status_board.debug_presets
   with
   | Ok html ->
     Http.respond_string

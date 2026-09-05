@@ -41,10 +41,10 @@ opam install . --deps-only --locked --with-dev-setup --yes \
 
 [tasks.schemas]
 hide = true
-sources = ["server/mta_protobuf/schemas.lock"]
+sources = ["server/feeds/mta_protobuf/schemas.lock"]
 outputs = [
-  "server/mta_protobuf/gtfs-realtime.proto",
-  "server/mta_protobuf/gtfs-realtime-NYCT.proto",
+  "server/feeds/mta_protobuf/gtfs-realtime.proto",
+  "server/feeds/mta_protobuf/gtfs-realtime-NYCT.proto",
 ]
 run = '''
 while read -r sha256 url output; do
@@ -52,7 +52,7 @@ while read -r sha256 url output; do
   curl --fail --location --output "$output.tmp" "$url"
   echo "$sha256  $output.tmp" | shasum --algorithm 256 --check
   mv "$output.tmp" "$output"
-done < server/mta_protobuf/schemas.lock
+done < server/feeds/mta_protobuf/schemas.lock
 '''
 
 [tasks.lock]
@@ -61,7 +61,7 @@ run = "opam lock ."
 [tasks.format]
 depends = ["deps"]
 run = '''
-find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --inplace {} +
+find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/feeds/mta_protobuf/*' -exec opam exec -- ocamlformat --inplace {} +
 find . \( -path './.git' -o -path './.worktrees' -o -path './_build*' -o -path './_opam' \) -prune -o -type f \( -name dune -o -name dune-project -o -name dune-workspace \) -exec sh -c '
   for file do
     formatted=$(mktemp)
@@ -78,7 +78,7 @@ find . \( -path './.git' -o -path './.worktrees' -o -path './_build*' -o -path '
 [tasks.pre-commit]
 depends = ["deps"]
 run = '''
-find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/mta_protobuf/*' -exec opam exec -- ocamlformat --check {} +
+find server -type f \( -name '*.ml' -o -name '*.mli' \) ! -path 'server/feeds/mta_protobuf/*' -exec opam exec -- ocamlformat --check {} +
 find . \( -path './.git' -o -path './.worktrees' -o -path './_build*' -o -path './_opam' \) -prune -o -type f \( -name dune -o -name dune-project -o -name dune-workspace \) -exec bash -o pipefail -c '
   for file do
     opam exec -- dune format-dune-file "$file" | diff -u "$file" - || exit
