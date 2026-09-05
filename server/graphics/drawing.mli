@@ -49,6 +49,7 @@ end
 
 val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
 val circle : Context.t -> fill:Fill.t -> center:int * int -> radius:int -> unit
+val star : Context.t -> stroke:Stroke.t -> radius:int -> center:int * int -> unit
 val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
 
 val draw_quadratic_curve
@@ -92,6 +93,7 @@ module O : sig
   val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
   val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
   val circle : Context.t -> fill:Fill.t -> center:int * int -> radius:int -> unit
+  val star : Context.t -> stroke:Stroke.t -> radius:int -> center:int * int -> unit
   val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
 
   val draw_quadratic_curve

@@ -123,6 +123,20 @@ let draw_sun_moon
   circle context ~fill ~center ~radius
 ;;
 
+let draw_bird context ~wing_width ~center:(x, y) =
+  let x = Float.of_int x
+  and y = Float.of_int y in
+  let wing_width = Float.of_int wing_width in
+  let stroke = Graphics.Drawing.Stroke.solid `b 2 in
+  List.iter [ -1.; 1. ] ~f:(fun direction ->
+    Graphics.Drawing.draw_quadratic_curve
+      context
+      ~stroke
+      ( (x, y)
+      , (x +. (direction *. wing_width *. 0.4), y -. 8.)
+      , (x +. (direction *. wing_width), y -. 6.) ))
+;;
+
 let draw_cloud
       context
       ~fill
@@ -148,7 +162,6 @@ let draw_cloud
   in
   rounded_polygon context ~radius:20 ~fill path;
   let symbol_top = base_y + 12 in
-  let float_point (x, y) = Float.of_int x, Float.of_int y in
   (match rain with
    | false -> ()
    | true ->
@@ -199,28 +212,18 @@ let draw_cloud
   | false -> ()
   | true ->
     let snowflake_radius = 17 in
-    let diagonal_x =
-      Float.of_int snowflake_radius *. Float.cos (Float.pi /. 6.)
-      |> Float.iround_nearest_exn
-    and diagonal_y =
-      Float.of_int snowflake_radius *. Float.sin (Float.pi /. 6.) |> Float.iround_up_exn
-    in
     let stroke = Stroke.create fill 4 in
-    let draw_snowflake ~center_x ~top =
-      let center_y = top + snowflake_radius in
-      List.iter
-        [ (center_x, center_y - snowflake_radius), (center_x, center_y + snowflake_radius)
-        ; ( (center_x - diagonal_x, center_y - diagonal_y)
-          , (center_x + diagonal_x, center_y + diagonal_y) )
-        ; ( (center_x - diagonal_x, center_y + diagonal_y)
-          , (center_x + diagonal_x, center_y - diagonal_y) )
-        ]
-        ~f:(fun (start, finish) ->
-          draw_line context ~stroke (float_point start) (float_point finish))
-    in
-    draw_snowflake ~center_x:(left + (width / 6)) ~top:(base_y + 30);
-    draw_snowflake ~center_x:(left + (5 * width / 12)) ~top:(base_y + 10);
-    draw_snowflake ~center_x:(left + (4 * width / 5)) ~top:(base_y + 15)
+    List.iter
+      [ left + (width / 6), base_y + 30
+      ; left + (5 * width / 12), base_y + 10
+      ; left + (4 * width / 5), base_y + 15
+      ]
+      ~f:(fun (center_x, top) ->
+        star
+          context
+          ~stroke
+          ~radius:snowflake_radius
+          ~center:(center_x, top + snowflake_radius))
 ;;
 
 let draw
@@ -641,15 +644,15 @@ let draw
       ~left:(sun_moon_center_x - sun_moon_radius)
       ~right:(sun_moon_center_x + sun_moon_radius)
       uv_text);
+  let farther_wall_x, sun_moon_near_side_x =
+    match sun_moon_center_x < w / 2 with
+    | true -> w, sun_moon_center_x + sun_moon_radius
+    | false -> 0, sun_moon_center_x - sun_moon_radius
+  in
+  let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   (match weather.conditions with
    | Weather_info.Conditions.Not_cloudy -> ()
    | Cloudy cloudy_conditions ->
-     let farther_wall_x, sun_moon_near_side_x =
-       match sun_moon_center_x < w / 2 with
-       | true -> w, sun_moon_center_x + sun_moon_radius
-       | false -> 0, sun_moon_center_x - sun_moon_radius
-     in
-     let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
      let cloud_base_y = h / 3 in
      draw_cloud
        context
@@ -657,6 +660,45 @@ let draw
        ~center_x:cloud_center_x
        ~base_y:cloud_base_y
        cloudy_conditions);
+  let choose_sky_spot ~radius ~spacing ~index ~count =
+    let clearance = 70 + radius + 2 in
+    let left, right =
+      match sun_moon_center_x < w / 2 with
+      | true ->
+        sun_moon_center_x + clearance, w - screen_edge_padding - spacing - radius - 2
+      | false -> screen_edge_padding + radius + 2, sun_moon_center_x - clearance - spacing
+    in
+    let seed = Int.hash (Time_ns.hash now + index) in
+    let positions =
+      List.range left (right + 1)
+      |> List.filter ~f:(fun x ->
+        match weather.conditions with
+        | Weather_info.Conditions.Not_cloudy -> true
+        | Cloudy _ ->
+          x >= cloud_center_x + clearance || x + spacing <= cloud_center_x - clearance)
+    in
+    let width = List.length positions in
+    let x = List.nth_exn positions (seed % width) in
+    let top = 60 in
+    let bottom = map_faded_top - screen_edge_padding - radius - 2 in
+    let height = (bottom - top + 1) / count in
+    let y = top + (index * height) + (seed / width % height) in
+    x, y
+  in
+  (match is_night with
+   | true ->
+     let radius = 3 in
+     let stroke = Stroke.solid `w 2 in
+     let count = 10 in
+     List.iter (List.range 0 count) ~f:(fun index ->
+       let center = choose_sky_spot ~radius ~spacing:0 ~index ~count in
+       star context ~stroke ~radius ~center)
+   | false ->
+     let wing_width = 10 in
+     let spacing = 28 in
+     let x, y = choose_sky_spot ~radius:wing_width ~spacing ~index:0 ~count:1 in
+     draw_bird context ~wing_width ~center:(x, y);
+     draw_bird context ~wing_width ~center:(x + spacing, y - 4));
   image
 ;;
 

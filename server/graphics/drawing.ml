@@ -303,6 +303,24 @@ let quadratic_curve_points (start, control, finish) =
       +. (progress *. progress *. y2) ))
 ;;
 
+let star context ~stroke ~radius ~center:(center_x, center_y) =
+  let diagonal_x =
+    Float.of_int radius *. Float.cos (Float.pi /. 6.) |> Float.iround_nearest_exn
+  and diagonal_y =
+    Float.of_int radius *. Float.sin (Float.pi /. 6.) |> Float.iround_up_exn
+  in
+  let float_point (x, y) = Float.of_int x, Float.of_int y in
+  List.iter
+    [ (center_x, center_y - radius), (center_x, center_y + radius)
+    ; ( (center_x - diagonal_x, center_y - diagonal_y)
+      , (center_x + diagonal_x, center_y + diagonal_y) )
+    ; ( (center_x - diagonal_x, center_y + diagonal_y)
+      , (center_x + diagonal_x, center_y - diagonal_y) )
+    ]
+    ~f:(fun (start, finish) ->
+      draw_line context ~stroke (float_point start) (float_point finish))
+;;
+
 let draw_quadratic_curve_without_casing context ~stroke points =
   List.iter (quadratic_curve_points points) ~f:(draw_stroke_point context ~stroke)
 ;;
@@ -437,6 +455,7 @@ module O = struct
   let rect = rect
   let polygon = polygon
   let circle = circle
+  let star = star
   let draw_line = draw_line
   let draw_quadratic_curve = draw_quadratic_curve
   let rounded_path = rounded_path
