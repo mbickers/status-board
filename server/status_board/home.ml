@@ -13,158 +13,16 @@ let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
     text
 ;;
 
-let availability_status
-      context
-      ~style
-      ~title
-      ~box_size
-      ~(station : Feeds.Citibike.Station.t)
-      ~is_enabled
-      ~f
-      anchor
-  =
-  let upper_left, lower_right = Graphics.Drawing.Anchor.resolve anchor ~size:box_size
-  and usable_capacity =
-    station.capacity - station.bikes_disabled - station.docks_disabled
-  in
-  let frac =
-    match usable_capacity <= 0 with
-    | true -> 0.
-    | false -> Float.of_int station.bikes_available /. Float.of_int usable_capacity
-  in
-  Status_box.draw
-    context
-    upper_left
-    lower_right
-    ~style
-    ~title
-    ~fill:
-      (match is_enabled with
-       | true -> Graphics.Drawing.Fill.fractional ~frac ~frontier_angle_degrees:15.
-       | false -> fun _ -> Status_box.Style.error_fill style)
-    ~f
-;;
-
-let available_bike_status
-      context
-      ~style
-      ~title
-      ~box_size
-      ~(station : Feeds.Citibike.Station.t)
-      anchor
-  =
-  let font = Status_box.Style.font style in
-  availability_status
-    context
-    ~style
-    ~title
-    ~box_size
-    ~station
-    ~is_enabled:station.is_renting
-    ~f:(fun context ~fill ->
-      let width, height = Graphics.Drawing.Context.size context in
-      let count_size = Status_box.Style.primary_font_size style
-      and base_padding = Status_box.Style.base_padding style
-      and horizontal_padding_between_text =
-        Status_box.Style.horizontal_padding_between_text style
-      in
-      let baseline_y = height - Status_box.Style.baseline_padding style
-      and left = base_padding
-      and right = width - base_padding in
-      match station.is_renting with
-      | true ->
-        let fill = Graphics.Drawing.Fill.invert fill in
-        let middle = (left + right) / 2 in
-        let bikes_right = middle - (horizontal_padding_between_text / 2)
-        and ebikes_left = middle + (horizontal_padding_between_text / 2) in
-        let bikes_available = station.bikes_available - station.ebikes_available
-        and ebikes_available = Int.to_string station.ebikes_available in
-        draw_centered_text
-          context
-          ~font
-          ~fill
-          ~size:count_size
-          ~baseline_y
-          ~left
-          ~right:bikes_right
-          (Int.to_string bikes_available);
-        draw_centered_text
-          context
-          ~font
-          ~fill
-          ~size:count_size
-          ~baseline_y
-          ~left:ebikes_left
-          ~right
-          ebikes_available;
-        let ebike_label_size = 22. in
-        let rendered_ebikes =
-          Graphics.Font.render_text font ebikes_available ~size:count_size
-        and rendered_ebike_label =
-          Graphics.Font.render_text font "e" ~size:ebike_label_size
-        in
-        draw_centered_text
-          context
-          ~font
-          ~fill
-          ~size:ebike_label_size
-          ~baseline_y:
-            (baseline_y
-             - rendered_ebikes.baseline_y
-             - 5
-             - rendered_ebike_label.height
-             + rendered_ebike_label.baseline_y)
-          ~left:ebikes_left
-          ~right
-          "e"
-      | false -> ())
-    anchor
-;;
-
-let parking_status
-      context
-      ~style
-      ~title
-      ~box_size
-      ~(station : Feeds.Citibike.Station.t)
-      anchor
-  =
-  let font = Status_box.Style.font style in
-  availability_status
-    context
-    ~style
-    ~title
-    ~box_size
-    ~station
-    ~is_enabled:station.is_returning
-    ~f:(fun context ~fill ->
-      match station.is_returning with
-      | false -> ()
-      | true ->
-        let width, height = Graphics.Drawing.Context.size context in
-        let base_padding = Status_box.Style.base_padding style in
-        draw_centered_text
-          context
-          ~font
-          ~fill:(Graphics.Drawing.Fill.invert fill)
-          ~size:(Status_box.Style.primary_font_size style)
-          ~baseline_y:(height - Status_box.Style.baseline_padding style)
-          ~left:base_padding
-          ~right:(width - base_padding)
-          (Int.to_string station.docks_available))
-    anchor
-;;
-
 module Draw_inputs = struct
   type t =
     { device_status : Status_board.Device_status.t
     ; weather : Weather_info.t
-    ; bridge_station : Feeds.Citibike.Station.t
-    ; roebling_station : Feeds.Citibike.Station.t
-    ; vesey_station : Feeds.Citibike.Station.t
-    ; west_station : Feeds.Citibike.Station.t
-    ; barclay_station : Feeds.Citibike.Station.t
-    ; fulton_station : Feeds.Citibike.Station.t
+    ; bridge_status : Citibike_status.t
+    ; roebling_status : Citibike_status.t
+    ; vesey_status : Citibike_status.t
+    ; west_status : Citibike_status.t
+    ; barclay_status : Citibike_status.t
+    ; fulton_status : Citibike_status.t
     ; bedford_status : [ `J | `L | `M ] Subway_status.t
     ; marcy_status : [ `J | `L | `M ] Subway_status.t
     ; now : Time_ns.t
@@ -213,12 +71,12 @@ let draw
       ~font
       ~device_status
       ~weather
-      ~bridge_station
-      ~roebling_station
-      ~vesey_station
-      ~west_station
-      ~barclay_station
-      ~fulton_station
+      ~bridge_status
+      ~roebling_status
+      ~vesey_status
+      ~west_status
+      ~barclay_status
+      ~fulton_status
       ~bedford_status
       ~marcy_status
       ~now
@@ -545,6 +403,7 @@ let draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
     ~style:status_box_style
+    ~title:"bedford"
     ~display_route_text
     ~route_fill
     bedford_status;
@@ -552,55 +411,59 @@ let draw
     context
     ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
     ~style:status_box_style
+    ~title:"marcy"
     ~display_route_text
     ~route_fill
     marcy_status;
   let bike_status_rx = subway_status_left - base_padding in
-  available_bike_status
+  Citibike_status.draw_availability
     context
+    ~anchor:(Anchor.Lr (bike_status_rx, bridge_status_bottom))
     ~style:status_box_style
     ~title:"bridge"
     ~box_size:available_bike_status_size
-    ~station:bridge_station
-    (Anchor.Lr (bike_status_rx, bridge_status_bottom));
-  available_bike_status
+    bridge_status;
+  Citibike_status.draw_availability
     context
+    ~anchor:(Anchor.Ur (bike_status_rx, j_y + subway_stroke_safe_padding + base_padding))
     ~style:status_box_style
     ~title:"roeb"
     ~box_size:available_bike_status_size
-    ~station:roebling_station
-    (Anchor.Ur (bike_status_rx, j_y + subway_stroke_safe_padding + base_padding));
-  parking_status
+    roebling_status;
+  Citibike_status.draw_parking
     context
+    ~anchor:(Anchor.Ul (parking_grid_left, parking_grid_left_column_top))
     ~style:status_box_style
     ~title:"ves"
     ~box_size:parking_status_size
-    ~station:vesey_station
-    (Anchor.Ul (parking_grid_left, parking_grid_left_column_top));
-  parking_status
+    vesey_status;
+  Citibike_status.draw_parking
     context
+    ~anchor:
+      (Anchor.Ul
+         ( parking_grid_left
+         , parking_grid_left_column_top + parking_status_height + base_padding ))
     ~style:status_box_style
     ~title:"west"
     ~box_size:parking_status_size
-    ~station:west_station
-    (Anchor.Ul
-       ( parking_grid_left
-       , parking_grid_left_column_top + parking_status_height + base_padding ));
-  parking_status
+    west_status;
+  Citibike_status.draw_parking
     context
+    ~anchor:(Anchor.Ul (parking_grid_right_column, parking_grid_top))
     ~style:status_box_style
     ~title:"barc"
     ~box_size:parking_status_size
-    ~station:barclay_station
-    (Anchor.Ul (parking_grid_right_column, parking_grid_top));
-  parking_status
+    barclay_status;
+  Citibike_status.draw_parking
     context
+    ~anchor:
+      (Anchor.Ul
+         ( parking_grid_right_column
+         , parking_grid_top + parking_status_height + base_padding ))
     ~style:status_box_style
     ~title:"ful"
     ~box_size:parking_status_size
-    ~station:fulton_station
-    (Anchor.Ul
-       (parking_grid_right_column, parking_grid_top + parking_status_height + base_padding));
+    fulton_status;
   let voltage_text =
     match device_status.Status_board.Device_status.battery_voltage with
     | Some battery_voltage ->
@@ -674,35 +537,36 @@ let live_draw_inputs cache ~device_status ~now =
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
      let%map.Or_error weather = Weather_info.create ~look_forward_hours:24 ~now ~forecast
-     and bridge_station = find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
-     and roebling_station = find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
-     and vesey_station = find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
-     and west_station = find_station "2170352212111402482"
-     and barclay_station = find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
-     and fulton_station = find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
+     and bridge_status =
+       find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+       |> Or_error.map ~f:Citibike_status.create
+     and roebling_status =
+       find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
+       |> Or_error.map ~f:Citibike_status.create
+     and vesey_status =
+       find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
+       |> Or_error.map ~f:Citibike_status.create
+     and west_status =
+       find_station "2170352212111402482" |> Or_error.map ~f:Citibike_status.create
+     and barclay_status =
+       find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
+       |> Or_error.map ~f:Citibike_status.create
+     and fulton_status =
+       find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
+       |> Or_error.map ~f:Citibike_status.create
      and bedford_status =
-       Subway_status.create
-         mta_subway_status
-         ~now
-         ~station_id:"L08"
-         ~title:"bedford"
-         ~rows:bedford_rows
+       Subway_status.create mta_subway_status ~now ~station_id:"L08" ~rows:bedford_rows
      and marcy_status =
-       Subway_status.create
-         mta_subway_status
-         ~now
-         ~station_id:"M16"
-         ~title:"marcy"
-         ~rows:marcy_rows
+       Subway_status.create mta_subway_status ~now ~station_id:"M16" ~rows:marcy_rows
      in
      { Draw_inputs.device_status
      ; weather
-     ; bridge_station
-     ; roebling_station
-     ; vesey_station
-     ; west_station
-     ; barclay_station
-     ; fulton_station
+     ; bridge_status
+     ; roebling_status
+     ; vesey_status
+     ; west_status
+     ; barclay_status
+     ; fulton_status
      ; bedford_status
      ; marcy_status
      ; now
@@ -754,21 +618,14 @@ let render input cache =
         Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
       in
       let widest_two_digit_number = Int.of_string widest_two_digit_number in
-      let station =
-        { Feeds.Citibike.Station.station_id = "dense"
-        ; name = "dense"
-        ; latitude = 0.
-        ; longitude = 0.
-        ; capacity = 3 * widest_two_digit_number
-        ; bikes_available = 2 * widest_two_digit_number
-        ; ebikes_available = widest_two_digit_number
-        ; bikes_disabled = 0
-        ; docks_available = widest_two_digit_number
-        ; docks_disabled = 0
-        ; is_installed = true
-        ; is_renting = true
-        ; is_returning = true
-        ; last_reported = now
+      let citibike_status =
+        { Citibike_status.availability =
+            Citibike_status.Availability.Renting
+              { classic_bikes_available = widest_two_digit_number
+              ; electric_bikes_available = widest_two_digit_number
+              }
+        ; parking = Accepting_returns { docks_available = widest_two_digit_number }
+        ; bikes_available_frac = 2. /. 3.
         }
       in
       let row display_route =
@@ -778,18 +635,18 @@ let render input cache =
         ; eastbound_minutes = minutes
         }
       in
-      let bedford_status = { Subway_status.title = "bedford"; rows = [ row `L ] }
-      and marcy_status = { Subway_status.title = "marcy"; rows = [ row `J; row `M ] } in
+      let bedford_status = { Subway_status.rows = [ row `L ] }
+      and marcy_status = { Subway_status.rows = [ row `J; row `M ] } in
       return
         (Ok
            { Draw_inputs.device_status = { battery_voltage = None }
            ; weather
-           ; bridge_station = station
-           ; roebling_station = station
-           ; vesey_station = station
-           ; west_station = station
-           ; barclay_station = station
-           ; fulton_station = station
+           ; bridge_status = citibike_status
+           ; roebling_status = citibike_status
+           ; vesey_status = citibike_status
+           ; west_status = citibike_status
+           ; barclay_status = citibike_status
+           ; fulton_status = citibike_status
            ; bedford_status
            ; marcy_status
            ; now
@@ -798,12 +655,12 @@ let render input cache =
   in
   let { Draw_inputs.device_status
       ; weather
-      ; bridge_station
-      ; roebling_station
-      ; vesey_station
-      ; west_station
-      ; barclay_station
-      ; fulton_station
+      ; bridge_status
+      ; roebling_status
+      ; vesey_status
+      ; west_status
+      ; barclay_status
+      ; fulton_status
       ; bedford_status
       ; marcy_status
       ; now
@@ -816,12 +673,12 @@ let render input cache =
       ~font
       ~device_status
       ~weather
-      ~bridge_station
-      ~roebling_station
-      ~vesey_station
-      ~west_station
-      ~barclay_station
-      ~fulton_station
+      ~bridge_status
+      ~roebling_status
+      ~vesey_status
+      ~west_status
+      ~barclay_status
+      ~fulton_status
       ~bedford_status
       ~marcy_status
       ~now

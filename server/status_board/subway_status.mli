@@ -8,10 +8,7 @@ module Row : sig
     }
 end
 
-type 'display_route t =
-  { title : string
-  ; rows : 'display_route Row.t list
-  }
+type 'display_route t = { rows : 'display_route Row.t list }
 
 module Selection : sig
   type 'display_route t =
@@ -26,7 +23,6 @@ val create
   :  Feeds.Mta_subway.Status.t
   -> now:Time_ns.t
   -> station_id:string
-  -> title:string
   -> rows:'display_route Selection.t list
   -> 'display_route t Or_error.t
 
@@ -37,6 +33,7 @@ val draw
   :  Graphics.Drawing.Context.t
   -> anchor:Graphics.Drawing.Anchor.t
   -> style:Status_box.Style.t
+  -> title:string
   -> display_route_text:('display_route -> string)
   -> route_fill:('display_route -> Graphics.Drawing.Fill.t)
   -> 'display_route t

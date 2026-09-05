@@ -8,10 +8,7 @@ module Row = struct
     }
 end
 
-type 'display_route t =
-  { title : string
-  ; rows : 'display_route Row.t list
-  }
+type 'display_route t = { rows : 'display_route Row.t list }
 
 module Selection = struct
   type 'display_route t =
@@ -22,7 +19,7 @@ module Selection = struct
     }
 end
 
-let create (status : Feeds.Mta_subway.Status.t) ~now ~station_id ~title ~rows =
+let create (status : Feeds.Mta_subway.Status.t) ~now ~station_id ~rows =
   let%map.Or_error stop_status =
     Map.find_or_error status.stop_status_by_station_id station_id
   in
@@ -53,7 +50,7 @@ let create (status : Feeds.Mta_subway.Status.t) ~now ~station_id ~title ~rows =
       ; eastbound_minutes = minutes eastbound_direction
       })
   in
-  { title; rows }
+  { rows }
 ;;
 
 let draw_bullet
@@ -249,7 +246,7 @@ let draw_row
 let width = Layout.width
 let height style t = (Layout.create style ~row_count:(List.length t.rows)).height
 
-let draw context ~anchor ~style ~display_route_text ~route_fill { title; rows } =
+let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows } =
   let font = Status_box.Style.font style in
   let layout = Layout.create style ~row_count:(List.length rows) in
   let upper_left, lower_right =
