@@ -57,6 +57,8 @@ module Alert = struct
     ; url : string option
     ; affected_route_ids : string list
     ; affected_stop_ids : string list
+    ; active_periods :
+        (Time_ns.Alternate_sexp.t option * Time_ns.Alternate_sexp.t option) list
     }
   [@@deriving sexp]
 end
@@ -159,12 +161,25 @@ let alert (entity : Gtfs.FeedEntity.t) =
       List.filter_map alert.informed_entity ~f:(fun entity -> entity.stop_id)
       |> List.dedup_and_sort ~compare:String.compare
     in
+    let parse_time = function
+      | None -> Ok None
+      | Some seconds ->
+        time_ns_of_seconds_since_epoch seconds |> Or_error.map ~f:Option.some
+    in
+    let%map.Or_error active_periods =
+      List.map alert.active_period ~f:(fun period ->
+        let%map.Or_error start = parse_time period.start
+        and finish = parse_time period.end' in
+        start, finish)
+      |> Or_error.combine_errors
+    in
     { Alert.id = entity.id
     ; header = Option.bind alert.header_text ~f:translated_text
     ; description = Option.bind alert.description_text ~f:translated_text
     ; url = Option.bind alert.url ~f:translated_text
     ; affected_route_ids
     ; affected_stop_ids
+    ; active_periods
     })
 ;;
 
@@ -189,7 +204,9 @@ let fetch_message (type result) (feed : result Feed.t) =
   let decode : Gtfs.FeedMessage.t -> result Or_error.t =
     match feed with
     | Feed.Realtime _ -> upcoming_arrivals
-    | All_alerts -> fun feed_message -> Ok (List.filter_map feed_message.entity ~f:alert)
+    | All_alerts ->
+      fun feed_message ->
+        List.filter_map feed_message.entity ~f:alert |> Or_error.combine_errors
   in
   let%bind.Deferred.Or_error contents = Http.get_body url in
   let%bind.Deferred.Or_error feed_message =
@@ -260,6 +277,14 @@ let query cache ~which_feeds =
          |> List.concat
          |> List.sort ~compare:(fun left right ->
            Time_ns.compare left.Arrival.arrives_at right.arrives_at))
+     in
+     let now = Time_ns.now () in
+     let all_alerts =
+       List.filter all_alerts ~f:(fun alert ->
+         List.is_empty alert.active_periods
+         || List.exists alert.active_periods ~f:(fun (start, finish) ->
+           Option.for_all start ~f:(fun start -> Time_ns.compare now start >= 0)
+           && Option.for_all finish ~f:(fun finish -> Time_ns.compare now finish < 0)))
      in
      let systemwide_alerts, targeted_alerts =
        List.partition_tf all_alerts ~f:(fun alert ->

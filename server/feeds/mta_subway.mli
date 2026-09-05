@@ -44,6 +44,8 @@ module Alert : sig
     ; url : string option
     ; affected_route_ids : string list
     ; affected_stop_ids : string list
+    ; active_periods :
+        (Time_ns.Alternate_sexp.t option * Time_ns.Alternate_sexp.t option) list
     }
 end
 

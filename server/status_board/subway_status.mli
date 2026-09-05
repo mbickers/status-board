@@ -8,7 +8,10 @@ module Row : sig
     }
 end
 
-type 'display_route t = { rows : 'display_route Row.t list }
+type 'display_route t =
+  { rows : 'display_route Row.t list
+  ; has_alert : bool
+  }
 
 module Selection : sig
   type 'display_route t =
