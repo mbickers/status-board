@@ -201,37 +201,44 @@ let fetch_message (type result) (feed : result Feed.t) =
   return (decode feed_message)
 ;;
 
+let realtime_cache_keys =
+  lazy
+    (Memo.general (fun realtime_feed ->
+       let feed_name =
+         realtime_feed
+         |> Realtime_feed.sexp_of_t
+         |> Sexp.to_string_mach
+         |> String.lowercase
+       in
+       Cache.Key.create
+         (module struct
+           type t = Arrival.t list String.Map.t [@@deriving sexp]
+         end)
+         ~filename:[%string "mta-subway-%{feed_name}"]))
+;;
+
+let alerts_cache_key =
+  lazy
+    (Cache.Key.create
+       (module struct
+         type t = Alert.t list [@@deriving sexp]
+       end)
+       ~filename:"mta-all-alerts")
+;;
+
 let query cache ~which_feeds =
   let max_age = Time_ns.Span.of_sec 30. in
   let realtime_feeds = List.dedup_and_sort which_feeds ~compare:Realtime_feed.compare in
   let%bind upcoming_arrival_results =
     Deferred.List.map realtime_feeds ~how:`Parallel ~f:(fun realtime_feed ->
-      let key =
-        let feed_name =
-          realtime_feed
-          |> Realtime_feed.sexp_of_t
-          |> Sexp.to_string_mach
-          |> String.lowercase
-        in
-        [%string "mta-subway-%{feed_name}"]
-      in
       Cache.get
         cache
-        (module struct
-          type t = Arrival.t list String.Map.t [@@deriving sexp]
-        end)
+        ((Lazy.force realtime_cache_keys) realtime_feed)
         ~max_age
-        ~fetch:(fun () -> fetch_message (Feed.Realtime realtime_feed))
-        ~key)
+        ~fetch:(fun () -> fetch_message (Feed.Realtime realtime_feed)))
   and all_alerts_result =
-    Cache.get
-      cache
-      (module struct
-        type t = Alert.t list [@@deriving sexp]
-      end)
-      ~max_age
-      ~fetch:(fun () -> fetch_message Feed.All_alerts)
-      ~key:"mta-all-alerts"
+    Cache.get cache (Lazy.force alerts_cache_key) ~max_age ~fetch:(fun () ->
+      fetch_message Feed.All_alerts)
   in
   return
     (let%bind.Or_error completed_arrivals =

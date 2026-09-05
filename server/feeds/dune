@@ -1,5 +1,6 @@
 (library
  (name feeds)
+ (inline_tests)
  (libraries
   core
   async

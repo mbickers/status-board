@@ -63,13 +63,15 @@ let fetch () =
   join information_feed.data.stations status_feed.data.stations |> return
 ;;
 
+let cache_key =
+  lazy
+    (Cache.Key.create
+       (module struct
+         type t = Station.t String.Map.t [@@deriving sexp]
+       end)
+       ~filename:"citibike")
+;;
+
 let query cache =
-  Cache.get
-    cache
-    (module struct
-      type t = Station.t String.Map.t [@@deriving sexp]
-    end)
-    ~max_age:(Time_ns.Span.of_sec 30.)
-    ~fetch
-    ~key:"citibike"
+  Cache.get cache (Lazy.force cache_key) ~max_age:(Time_ns.Span.of_sec 30.) ~fetch
 ;;

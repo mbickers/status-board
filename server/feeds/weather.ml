@@ -263,15 +263,25 @@ let fetch_weather ~coordinates () =
      Ok (forecast, air_quality))
 ;;
 
+let cache_keys =
+  lazy
+    (Memo.general (fun filename ->
+       Cache.Key.create
+         (module struct
+           type t = Forecast.t * Air_quality.t [@@deriving sexp]
+         end)
+         ~filename))
+;;
+
 let query cache ~coordinates =
-  Cache.get
-    cache
-    (module struct
-      type t = Forecast.t * Air_quality.t [@@deriving sexp]
-    end)
-    ~max_age:(Time_ns.Span.of_min 15.)
-    ~fetch:(fetch_weather ~coordinates)
-    ~key:
+  let key =
+    (Lazy.force cache_keys)
       [%string
         "weather_%{coordinates.Coordinates.latitude#Float}_%{coordinates.longitude#Float}"]
+  in
+  Cache.get
+    cache
+    key
+    ~max_age:(Time_ns.Span.of_min 15.)
+    ~fetch:(fetch_weather ~coordinates)
 ;;
