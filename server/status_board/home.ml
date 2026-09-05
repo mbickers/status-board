@@ -100,7 +100,7 @@ let draw_cloud
   let open Graphics.Drawing.O in
   let width = 250
   and height = 100 in
-  let left = center_x - ((width + (height / 2)) / 2) in
+  let left = center_x - (width / 2) in
   let path =
     Path_resolver_step.resolve
       [ Path_resolver_step.Point (left, base_y)
@@ -114,56 +114,80 @@ let draw_cloud
       ]
   in
   rounded_polygon context ~radius:20 ~fill path;
-  let symbols =
-    [ Option.some_if rain `Rain
-    ; Option.some_if thunderstorm `Thunderstorm
-    ; Option.some_if snow `Snow
-    ]
-    |> List.filter_opt
-  in
-  let symbol_top = base_y + 12
-  and symbol_spacing = 70 in
+  let symbol_top = base_y + 12 in
   let float_point (x, y) = Float.of_int x, Float.of_int y in
-  List.iteri symbols ~f:(fun index symbol ->
-    let symbol_center_x =
-      center_x + (((2 * index) - List.length symbols + 1) * symbol_spacing / 2)
+  (match rain with
+   | false -> ()
+   | true ->
+     let drop_radius = 9 in
+     let drop_spacing = (2 * drop_radius) + 2 in
+     List.iter
+       [ 1. /. 4., 0
+       ; (1. /. 4.) +. (1. /. 12.), drop_spacing
+       ; 2. /. 3., 0
+       ; (2. /. 3.) +. (1. /. 12.), drop_spacing
+       ]
+       ~f:(fun (fraction_from_left, offset_y) ->
+         let center_x =
+           left + Float.iround_nearest_exn (fraction_from_left *. Float.of_int width)
+         in
+         let top = symbol_top + offset_y in
+         let circle_center_y = top + (2 * drop_radius) + 1 in
+         let shoulder_y = circle_center_y - (drop_radius / 2) in
+         polygon
+           context
+           ~fill
+           [ center_x, top
+           ; center_x + drop_radius - 1, shoulder_y
+           ; center_x - drop_radius + 1, shoulder_y
+           ];
+         circle context ~fill ~center:(center_x, circle_center_y) ~radius:drop_radius));
+  (match thunderstorm with
+   | false -> ()
+   | true ->
+     let lightning_width = 24
+     and lightning_height = 69 in
+     let half_width = lightning_width / 2 in
+     let tip_offset = 3 * lightning_width / 8 in
+     let waist_half_width = Int.max 1 (lightning_width / 24) in
+     let upper_waist_y = (lightning_height - tip_offset) / 2 in
+     let lower_waist_y = lightning_height - upper_waist_y in
+     polygon
+       context
+       ~fill
+       [ center_x + tip_offset, symbol_top
+       ; center_x + waist_half_width, symbol_top + upper_waist_y
+       ; center_x + half_width, symbol_top + upper_waist_y
+       ; center_x - tip_offset, symbol_top + lightning_height
+       ; center_x - waist_half_width, symbol_top + lower_waist_y
+       ; center_x - half_width, symbol_top + lower_waist_y
+       ]);
+  match snow with
+  | false -> ()
+  | true ->
+    let snowflake_radius = 17 in
+    let diagonal_x =
+      Float.of_int snowflake_radius *. Float.cos (Float.pi /. 6.)
+      |> Float.iround_nearest_exn
+    and diagonal_y =
+      Float.of_int snowflake_radius *. Float.sin (Float.pi /. 6.) |> Float.iround_up_exn
     in
-    match symbol with
-    | `Rain ->
+    let stroke = Stroke.create fill 4 in
+    let draw_snowflake ~center_x ~top =
+      let center_y = top + snowflake_radius in
       List.iter
-        [ 10, 0; 30, 20; 50, 0 ]
-        ~f:(fun (offset_x, offset_y) ->
-          let center_x = symbol_center_x + offset_x in
-          let top = symbol_top + offset_y in
-          polygon
-            context
-            ~fill
-            [ center_x, top; center_x + 8, top + 15; center_x - 8, top + 15 ];
-          circle context ~fill ~center:(center_x, top + 19) ~radius:9)
-    | `Thunderstorm ->
-      polygon
-        context
-        ~fill
-        [ symbol_center_x + 9, symbol_top
-        ; symbol_center_x + 1, symbol_top + 30
-        ; symbol_center_x + 12, symbol_top + 30
-        ; symbol_center_x - 9, symbol_top + 69
-        ; symbol_center_x - 1, symbol_top + 39
-        ; symbol_center_x - 12, symbol_top + 39
+        [ (center_x, center_y - snowflake_radius), (center_x, center_y + snowflake_radius)
+        ; ( (center_x - diagonal_x, center_y - diagonal_y)
+          , (center_x + diagonal_x, center_y + diagonal_y) )
+        ; ( (center_x - diagonal_x, center_y + diagonal_y)
+          , (center_x + diagonal_x, center_y - diagonal_y) )
         ]
-    | `Snow ->
-      let stroke = Stroke.create fill 4 in
-      let draw_snowflake (center_x, center_y) =
-        List.iter
-          [ (center_x, center_y - 17), (center_x, center_y + 17)
-          ; (center_x - 15, center_y - 9), (center_x + 15, center_y + 9)
-          ; (center_x - 15, center_y + 9), (center_x + 15, center_y - 9)
-          ]
-          ~f:(fun (start, finish) ->
-            draw_line context ~stroke (float_point start) (float_point finish))
-      in
-      draw_snowflake (left + (width / 5), symbol_top + 39);
-      draw_snowflake (left + (4 * width / 5), symbol_top + 18))
+        ~f:(fun (start, finish) ->
+          draw_line context ~stroke (float_point start) (float_point finish))
+    in
+    draw_snowflake ~center_x:(left + (width / 6)) ~top:(base_y + 30);
+    draw_snowflake ~center_x:(left + (5 * width / 12)) ~top:(base_y + 10);
+    draw_snowflake ~center_x:(left + (4 * width / 5)) ~top:(base_y + 15)
 ;;
 
 let draw
@@ -337,10 +361,10 @@ let draw
   let brooklyn_foot = 50
   and brooklyn_corner_radius = 20 in
   let brooklyn_path =
-    [ w, brooklyn_top
+    [ w + brooklyn_corner_radius, brooklyn_top
     ; brooklyn_start, brooklyn_top
     ; brooklyn_start, h - brooklyn_foot
-    ; brooklyn_start - brooklyn_foot, h
+    ; brooklyn_start - brooklyn_foot - brooklyn_corner_radius, h + brooklyn_corner_radius
     ]
   in
   let water_fill (x, y) =
@@ -478,7 +502,7 @@ let draw
     ~radius:brooklyn_corner_radius
     ~fill:land_fill
     ~stroke:geo_stroke
-    (brooklyn_path @ [ w, h ]);
+    (brooklyn_path @ [ w + brooklyn_corner_radius, h + brooklyn_corner_radius ]);
   rounded_path
     context
     ~radius:20
@@ -588,13 +612,12 @@ let draw
     [ "updated"; Time_ns_unix.format now "%H:%M" ~zone:display_zone ]
     |> String.concat ~sep:" "
   and status_text_padding = 8 in
-  let status_text_fill = Fill.bayer_exn ~white_frac:0.5 in
   let draw_status_text ~origin_x string =
     let rendered_text = Graphics.Font.render_text font string ~size:secondary_text_size in
     text
       context
       ~font
-      ~fill:status_text_fill
+      ~fill:alt_fill
       ~origin_x:(origin_x rendered_text)
       ~baseline_y:(status_text_padding + rendered_text.baseline_y)
       ~size:secondary_text_size
@@ -607,12 +630,12 @@ let draw
   (match weather.conditions with
    | Weather_info.Conditions.Not_cloudy -> ()
    | Cloudy cloudy_conditions ->
-     let farther_wall_x =
+     let farther_wall_x, sun_moon_near_side_x =
        match sun_moon_center_x < w / 2 with
-       | true -> w
-       | false -> 0
+       | true -> w, sun_moon_center_x + sun_moon_radius
+       | false -> 0, sun_moon_center_x - sun_moon_radius
      in
-     let cloud_center_x = (sun_moon_center_x + farther_wall_x) / 2 in
+     let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
      let cloud_base_y = h / 3 in
      draw_cloud
        context
