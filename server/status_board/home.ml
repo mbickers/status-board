@@ -142,11 +142,11 @@ let draw_cloud
       ~fill
       ~center_x
       ~base_y
+      ~height
       ({ rain; snow; thunderstorm } : Weather_info.Cloudy_conditions.t)
   =
   let open Graphics.Drawing.O in
-  let width = 250
-  and height = 100 in
+  let width = 250 in
   let left = center_x - (width / 2) in
   let path =
     Path_resolver_step.resolve
@@ -650,39 +650,53 @@ let draw
     | false -> 0, sun_moon_center_x - sun_moon_radius
   in
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
+  let cloud_base_y = h / 3 in
+  let cloud_height = 100 in
+  let cloud_center_y = cloud_base_y - (cloud_height / 2) in
   (match weather.conditions with
    | Weather_info.Conditions.Not_cloudy -> ()
    | Cloudy cloudy_conditions ->
-     let cloud_base_y = h / 3 in
      draw_cloud
        context
        ~fill:alt_fill
        ~center_x:cloud_center_x
        ~base_y:cloud_base_y
+       ~height:cloud_height
        cloudy_conditions);
-  let choose_sky_spot ~radius ~spacing ~index ~count =
-    let clearance = 70 + radius + 2 in
-    let left, right =
-      match sun_moon_center_x < w / 2 with
-      | true ->
-        sun_moon_center_x + clearance, w - screen_edge_padding - spacing - radius - 2
-      | false -> screen_edge_padding + radius + 2, sun_moon_center_x - clearance - spacing
-    in
+  let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
+    let padding = radius + 2 in
+    let left = screen_edge_padding + padding in
+    let right = w - screen_edge_padding - offset_x - padding in
     let seed = Int.hash (Time_ns.hash now + index) in
+    let top = 60 in
+    let bottom = map_faded_top - screen_edge_padding - padding in
+    let height = (bottom - top + 1) / count in
+    let y = top + (index * height) + (seed % height) in
     let positions =
       List.range left (right + 1)
       |> List.filter ~f:(fun x ->
+        let clears_center (center_x, center_y) =
+          let dx =
+            Int.max
+              0
+              (Int.max (x - padding - center_x) (center_x - x - offset_x - padding))
+          in
+          let dy =
+            Int.max
+              0
+              (Int.max
+                 (y + Int.min 0 offset_y - padding - center_y)
+                 (center_y - y - Int.max 0 offset_y - padding))
+          in
+          (dx * dx) + (dy * dy) >= 70 * 70
+        in
+        clears_center sun_moon_center
+        &&
         match weather.conditions with
         | Weather_info.Conditions.Not_cloudy -> true
-        | Cloudy _ ->
-          x >= cloud_center_x + clearance || x + spacing <= cloud_center_x - clearance)
+        | Cloudy _ -> clears_center (cloud_center_x, cloud_center_y))
     in
-    let width = List.length positions in
-    let x = List.nth_exn positions (seed % width) in
-    let top = 60 in
-    let bottom = map_faded_top - screen_edge_padding - radius - 2 in
-    let height = (bottom - top + 1) / count in
-    let y = top + (index * height) + (seed / width % height) in
+    let x = List.nth_exn positions (seed / height % List.length positions) in
     x, y
   in
   (match is_night with
@@ -691,12 +705,14 @@ let draw
      let stroke = Stroke.solid `w 2 in
      let count = 10 in
      List.iter (List.range 0 count) ~f:(fun index ->
-       let center = choose_sky_spot ~radius ~spacing:0 ~index ~count in
+       let center = choose_sky_spot ~radius ~offset:(0, 0) ~index ~count in
        star context ~stroke ~radius ~center)
    | false ->
      let wing_width = 10 in
      let spacing = 28 in
-     let x, y = choose_sky_spot ~radius:wing_width ~spacing ~index:0 ~count:1 in
+     let x, y =
+       choose_sky_spot ~radius:wing_width ~offset:(spacing, -4) ~index:0 ~count:1
+     in
      draw_bird context ~wing_width ~center:(x, y);
      draw_bird context ~wing_width ~center:(x + spacing, y - 4));
   image
