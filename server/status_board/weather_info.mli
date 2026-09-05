@@ -1,10 +1,25 @@
 open! Core
 
+module Cloudy_conditions : sig
+  type t =
+    { rain : bool
+    ; snow : bool
+    ; thunderstorm : bool
+    }
+end
+
+module Conditions : sig
+  type t =
+    | Not_cloudy
+    | Cloudy of Cloudy_conditions.t
+end
+
 type t =
   { current_temperature_celsius : float option
   ; low_temperature_celsius : float option
   ; high_temperature_celsius : float option
   ; maximum_uv_index : float option
+  ; conditions : Conditions.t
   ; sunrise : Time_ns.t
   ; sunset : Time_ns.t
   }

@@ -67,6 +67,82 @@ let fahrenheit_text = function
 
 let celsius_of_fahrenheit fahrenheit = (fahrenheit -. 32.) *. 5. /. 9.
 
+let draw_cloud
+      context
+      ~fill
+      ~center_x
+      ~base_y
+      ({ rain; snow; thunderstorm } : Weather_info.Cloudy_conditions.t)
+  =
+  let open Graphics.Drawing.O in
+  let width = 250
+  and height = 100 in
+  let left = center_x - ((width + (height / 2)) / 2) in
+  let path =
+    Path_resolver_step.resolve
+      [ Path_resolver_step.Point (left, base_y)
+      ; Offset (width, 0)
+      ; Offset (0, -height / 2)
+      ; Offset (-height / 2, 0)
+      ; Offset (0, -height / 2)
+      ; Offset (-width + height, 0)
+      ; Offset (0, height / 2)
+      ; Offset (-height / 2, 0)
+      ]
+  in
+  rounded_polygon context ~radius:20 ~fill path;
+  let symbols =
+    [ Option.some_if rain `Rain
+    ; Option.some_if thunderstorm `Thunderstorm
+    ; Option.some_if snow `Snow
+    ]
+    |> List.filter_opt
+  in
+  let symbol_top = base_y + 12
+  and symbol_spacing = 70 in
+  let float_point (x, y) = Float.of_int x, Float.of_int y in
+  List.iteri symbols ~f:(fun index symbol ->
+    let symbol_center_x =
+      center_x + (((2 * index) - List.length symbols + 1) * symbol_spacing / 2)
+    in
+    match symbol with
+    | `Rain ->
+      List.iter
+        [ 10, 0; 30, 20; 50, 0 ]
+        ~f:(fun (offset_x, offset_y) ->
+          let center_x = symbol_center_x + offset_x in
+          let top = symbol_top + offset_y in
+          polygon
+            context
+            ~fill
+            [ center_x, top; center_x + 8, top + 15; center_x - 8, top + 15 ];
+          circle context ~fill ~center:(center_x, top + 19) ~radius:9)
+    | `Thunderstorm ->
+      polygon
+        context
+        ~fill
+        [ symbol_center_x + 9, symbol_top
+        ; symbol_center_x + 1, symbol_top + 30
+        ; symbol_center_x + 12, symbol_top + 30
+        ; symbol_center_x - 9, symbol_top + 69
+        ; symbol_center_x - 1, symbol_top + 39
+        ; symbol_center_x - 12, symbol_top + 39
+        ]
+    | `Snow ->
+      let stroke = Stroke.create fill 4 in
+      let draw_snowflake (center_x, center_y) =
+        List.iter
+          [ (center_x, center_y - 17), (center_x, center_y + 17)
+          ; (center_x - 15, center_y - 9), (center_x + 15, center_y + 9)
+          ; (center_x - 15, center_y + 9), (center_x + 15, center_y - 9)
+          ]
+          ~f:(fun (start, finish) ->
+            draw_line context ~stroke (float_point start) (float_point finish))
+      in
+      draw_snowflake (left + (width / 5), symbol_top + 39);
+      draw_snowflake (left + (4 * width / 5), symbol_top + 18))
+;;
+
 let draw
       ~font
       ~device_status
@@ -108,14 +184,12 @@ let draw
   and h = 480 in
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
-  let black = Fill.solid `b
-  and land_fill =
-    Fill.bayer_exn
-      ~size:16
-      ~white_frac:
-        (match is_night with
-         | true -> 0.8
-         | false -> 254. /. 256.)
+  let black = Fill.solid `b in
+  let alt_fill = Fill.bayer_exn ~size:16 ~white_frac:0.79 in
+  let land_fill =
+    match is_night with
+    | true -> alt_fill
+    | false -> Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   and geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
   let manhattan_w = 220
@@ -192,9 +266,11 @@ let draw
   let subway_casing = Stroke.create (north_fade (Fill.solid `w)) 12 in
   let subway_stroke fill = Stroke.create ~casing:subway_casing fill 8 in
   let subway_stroke_safe_padding = Stroke.safe_padding (subway_stroke black) in
+  let manhattan_corner_radius = 20 in
+  let manhattan_top = map_faded_top - manhattan_corner_radius in
   let manhattan_path =
     Path_resolver_step.resolve
-      [ Path_resolver_step.Point (manhattan_left, map_faded_top)
+      [ Path_resolver_step.Point (manhattan_left, manhattan_top)
       ; Point (manhattan_left, manhattan_bottom - manhattan_inset)
       ; Offset (manhattan_inset, manhattan_inset)
       ; Point (manhattan_w - manhattan_inset, manhattan_bottom)
@@ -202,7 +278,7 @@ let draw
       ; Point (manhattan_w, map_top + manhattan_inset + 20)
       ; Offset (-manhattan_inset, -manhattan_inset)
       ; Offset (0, -20)
-      ; Point (manhattan_w - manhattan_inset, map_faded_top)
+      ; Point (manhattan_w - manhattan_inset, manhattan_top)
       ]
   in
   let subway_status_right = w - screen_edge_padding
@@ -250,18 +326,6 @@ let draw
     | false -> base_color
   in
   let faded_water_fill = north_fade water_fill in
-  let brooklyn_fill (x, y) =
-    let x_distance = x - (brooklyn_start + brooklyn_corner_radius)
-    and y_distance = y - (brooklyn_top + brooklyn_corner_radius) in
-    match
-      x < brooklyn_start + brooklyn_corner_radius
-      && y < brooklyn_top + brooklyn_corner_radius
-      && (x_distance * x_distance) + (y_distance * y_distance)
-         > brooklyn_corner_radius * brooklyn_corner_radius
-    with
-    | true -> faded_water_fill (x, y)
-    | false -> land_fill (x, y)
-  in
   let sun_moon_radius = 69 in
   let sun_moon_left = screen_edge_padding + sun_moon_radius
   and sun_moon_right = w - screen_edge_padding - sun_moon_radius
@@ -282,11 +346,7 @@ let draw
   let sun_moon_center =
     Float.iround_nearest_exn sun_moon_x, Float.iround_nearest_exn sun_moon_y
   in
-  circle
-    context
-    ~fill:(Fill.bayer_exn ~size:16 ~white_frac:0.79)
-    ~center:sun_moon_center
-    ~radius:sun_moon_radius;
+  circle context ~fill:alt_fill ~center:sun_moon_center ~radius:sun_moon_radius;
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
   let temperature_text = fahrenheit_text weather.current_temperature_celsius
   and low_high_text =
@@ -356,14 +416,18 @@ let draw
       ~right:(sun_moon_center_x + sun_moon_radius)
       uv_text);
   rect context ~fill:faded_water_fill (0, map_faded_top) (w, h);
-  polygon context ~fill:(north_fade land_fill) manhattan_path;
-  polygon context ~fill:brooklyn_fill (brooklyn_path @ [ w, h ]);
-  rounded_path
+  rounded_polygon
     context
-    ~radius:20
+    ~radius:manhattan_corner_radius
+    ~fill:(north_fade land_fill)
     ~stroke:(Stroke.create (north_fade black) 8)
     manhattan_path;
-  rounded_path context ~radius:brooklyn_corner_radius ~stroke:geo_stroke brooklyn_path;
+  rounded_polygon
+    context
+    ~radius:brooklyn_corner_radius
+    ~fill:land_fill
+    ~stroke:geo_stroke
+    (brooklyn_path @ [ w, h ]);
   rounded_path
     context
     ~radius:20
@@ -489,10 +553,27 @@ let draw
     status_text_padding + rendered_text.origin_x);
   draw_status_text updated_text ~origin_x:(fun rendered_text ->
     w - status_text_padding - rendered_text.width + rendered_text.origin_x);
+  (match weather.conditions with
+   | Weather_info.Conditions.Not_cloudy -> ()
+   | Cloudy cloudy_conditions ->
+     let farther_wall_x =
+       match sun_moon_center_x < w / 2 with
+       | true -> w
+       | false -> 0
+     in
+     let cloud_center_x = (sun_moon_center_x + farther_wall_x) / 2 in
+     let cloud_base_y = h / 3 in
+     draw_cloud
+       context
+       ~fill:alt_fill
+       ~center_x:cloud_center_x
+       ~base_y:cloud_base_y
+       cloudy_conditions);
   image
 ;;
 
 let dense_text_night_preset = "dense text + night"
+let day_stormy_preset = "day + stormy"
 
 let weather_coordinates =
   { Feeds.Weather.Coordinates.latitude = 40.7128; longitude = -74.006 }
@@ -573,6 +654,44 @@ let live_draw_inputs cache ~device_status ~now =
      })
 ;;
 
+let preset_draw_inputs ~font ~now ~weather =
+  let _, widest_two_digit_number =
+    Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
+  in
+  let widest_two_digit_number = Int.of_string widest_two_digit_number in
+  let citibike_status =
+    { Citibike_status.availability =
+        Citibike_status.Availability.Renting
+          { classic_bikes_available = widest_two_digit_number
+          ; electric_bikes_available = widest_two_digit_number
+          }
+    ; parking = Accepting_returns { docks_available = widest_two_digit_number }
+    ; bikes_available_frac = 2. /. 3.
+    }
+  in
+  let row display_route =
+    let minutes = List.init 3 ~f:(fun _ -> widest_two_digit_number) in
+    { Subway_status.Row.display_route
+    ; westbound_minutes = minutes
+    ; eastbound_minutes = minutes
+    }
+  in
+  let bedford_status = { Subway_status.rows = [ row `L ] }
+  and marcy_status = { Subway_status.rows = [ row `J; row `M ] } in
+  { Draw_inputs.device_status = { battery_voltage = None }
+  ; weather
+  ; bridge_status = citibike_status
+  ; roebling_status = citibike_status
+  ; vesey_status = citibike_status
+  ; west_status = citibike_status
+  ; barclay_status = citibike_status
+  ; fulton_status = citibike_status
+  ; bedford_status
+  ; marcy_status
+  ; now
+  }
+;;
+
 let render input cache =
   let now = Time_ns.now () in
   let%bind.Deferred.Or_error font =
@@ -600,6 +719,7 @@ let render input cache =
         ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
         ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
         ; maximum_uv_index = Some 10.
+        ; conditions = Weather_info.Conditions.Not_cloudy
         ; sunrise =
             Time_ns.occurrence
               `First_after_or_at
@@ -614,43 +734,38 @@ let render input cache =
               ~zone:display_zone
         }
       in
-      let _, widest_two_digit_number =
-        Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
+      return (Ok (preset_draw_inputs ~font ~now ~weather))
+    | Preview (Some preset) when String.equal preset day_stormy_preset ->
+      let now =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:15 ())
+          ~zone:display_zone
       in
-      let widest_two_digit_number = Int.of_string widest_two_digit_number in
-      let citibike_status =
-        { Citibike_status.availability =
-            Citibike_status.Availability.Renting
-              { classic_bikes_available = widest_two_digit_number
-              ; electric_bikes_available = widest_two_digit_number
-              }
-        ; parking = Accepting_returns { docks_available = widest_two_digit_number }
-        ; bikes_available_frac = 2. /. 3.
+      let weather =
+        { Weather_info.current_temperature_celsius = Some (celsius_of_fahrenheit 32.)
+        ; low_temperature_celsius = Some (celsius_of_fahrenheit 20.)
+        ; high_temperature_celsius = Some (celsius_of_fahrenheit 40.)
+        ; maximum_uv_index = None
+        ; conditions =
+            Weather_info.Conditions.Cloudy
+              { rain = true; snow = true; thunderstorm = true }
+        ; sunrise =
+            Time_ns.occurrence
+              `First_after_or_at
+              now
+              ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+              ~zone:display_zone
+        ; sunset =
+            Time_ns.occurrence
+              `First_after_or_at
+              now
+              ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+              ~zone:display_zone
         }
       in
-      let row display_route =
-        let minutes = List.init 3 ~f:(fun _ -> widest_two_digit_number) in
-        { Subway_status.Row.display_route
-        ; westbound_minutes = minutes
-        ; eastbound_minutes = minutes
-        }
-      in
-      let bedford_status = { Subway_status.rows = [ row `L ] }
-      and marcy_status = { Subway_status.rows = [ row `J; row `M ] } in
-      return
-        (Ok
-           { Draw_inputs.device_status = { battery_voltage = None }
-           ; weather
-           ; bridge_status = citibike_status
-           ; roebling_status = citibike_status
-           ; vesey_status = citibike_status
-           ; west_status = citibike_status
-           ; barclay_status = citibike_status
-           ; fulton_status = citibike_status
-           ; bedford_status
-           ; marcy_status
-           ; now
-           })
+      return (Ok (preset_draw_inputs ~font ~now ~weather))
     | Preview (Some preset) -> Deferred.Or_error.errorf "Unknown debug preset %S" preset
   in
   let { Draw_inputs.device_status
@@ -688,7 +803,7 @@ let render input cache =
 
 let status_board =
   { Status_board.refresh_interval = Time_ns.Span.of_sec 30.
-  ; debug_presets = [ dense_text_night_preset ]
+  ; debug_presets = [ dense_text_night_preset; day_stormy_preset ]
   ; render
   }
 ;;

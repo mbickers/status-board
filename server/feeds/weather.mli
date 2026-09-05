@@ -12,6 +12,7 @@ module Conditions : sig
   type t =
     { thunderstorm : bool
     ; cloudy : bool
+    ; rain : bool
     ; snow : bool
     }
   [@@deriving sexp]
@@ -22,6 +23,7 @@ module Forecast_current : sig
     { time : Time_ns.Alternate_sexp.t
     ; interval_seconds : int
     ; temperature_2m : float option
+    ; conditions : Conditions.t option
     ; uv_index : float option
     }
   [@@deriving sexp]

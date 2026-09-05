@@ -178,7 +178,7 @@ module Path_resolver_step = struct
   ;;
 end
 
-let polygon context ~fill points =
+let fill_polygon context ~fill points =
   match points with
   | [] | [ _ ] | [ _; _ ] -> ()
   | first :: _ ->
@@ -190,18 +190,17 @@ let polygon context ~fill points =
     let min_y, max_y =
       List.fold
         points
-        ~init:(Int.max_value, Int.min_value)
-        ~f:(fun (min_y, max_y) (_, y) -> Int.min min_y y, Int.max max_y y)
+        ~init:(Float.infinity, Float.neg_infinity)
+        ~f:(fun (min_y, max_y) (_, y) -> Float.min min_y y, Float.max max_y y)
     in
-    for y = min_y to max_y - 1 do
+    for
+      y = Int.of_float (Float.round_down min_y) to Int.of_float (Float.round_up max_y) - 1
+    do
       edges points
       |> List.filter_map ~f:(fun ((x1, y1), (x2, y2)) ->
-        match (y1 <= y && y < y2) || (y2 <= y && y < y1) with
-        | true ->
-          Some
-            (Float.of_int x1
-             +. (Float.of_int (y - y1) *. Float.of_int (x2 - x1) /. Float.of_int (y2 - y1))
-            )
+        let y = Float.of_int y in
+        match Float.(y1 <= y && y < y2) || Float.(y2 <= y && y < y1) with
+        | true -> Some (x1 +. ((y -. y1) *. (x2 -. x1) /. (y2 -. y1)))
         | false -> None)
       |> List.sort ~compare:Float.compare
       |> fun intersections ->
@@ -218,6 +217,12 @@ let polygon context ~fill points =
       in
       fill_between_intersections intersections
     done
+;;
+
+let polygon context ~fill points =
+  points
+  |> List.map ~f:(fun (x, y) -> Float.of_int x, Float.of_int y)
+  |> fill_polygon context ~fill
 ;;
 
 let distance (x1, y1) (x2, y2) =
@@ -276,7 +281,7 @@ let rec draw_line context ~stroke start finish =
   draw_line_without_casing context ~stroke start finish
 ;;
 
-let draw_quadratic_curve_without_casing context ~stroke (start, control, finish) =
+let quadratic_curve_points (start, control, finish) =
   let steps =
     Int.max
       1
@@ -287,19 +292,19 @@ let draw_quadratic_curve_without_casing context ~stroke (start, control, finish)
   let x1, y1 = start
   and control_x, control_y = control
   and x2, y2 = finish in
-  for step = 0 to steps do
+  List.init (steps + 1) ~f:(fun step ->
     let progress = Float.of_int step /. Float.of_int steps in
     let remaining = 1. -. progress in
-    draw_stroke_point
-      context
-      ~stroke
-      ( (remaining *. remaining *. x1)
-        +. (2. *. remaining *. progress *. control_x)
-        +. (progress *. progress *. x2)
-      , (remaining *. remaining *. y1)
-        +. (2. *. remaining *. progress *. control_y)
-        +. (progress *. progress *. y2) )
-  done
+    ( (remaining *. remaining *. x1)
+      +. (2. *. remaining *. progress *. control_x)
+      +. (progress *. progress *. x2)
+    , (remaining *. remaining *. y1)
+      +. (2. *. remaining *. progress *. control_y)
+      +. (progress *. progress *. y2) ))
+;;
+
+let draw_quadratic_curve_without_casing context ~stroke points =
+  List.iter (quadratic_curve_points points) ~f:(draw_stroke_point context ~stroke)
 ;;
 
 let rec draw_quadratic_curve context ~stroke points =
@@ -349,6 +354,45 @@ let rec rounded_path context ~radius ~stroke points =
     draw first first points
 ;;
 
+let rec stroke_closed_path context ~stroke points =
+  Option.iter stroke.Stroke.casing ~f:(fun casing ->
+    stroke_closed_path context ~stroke:casing points);
+  let stroke = { stroke with casing = None } in
+  match points with
+  | [] | [ _ ] -> ()
+  | first :: _ ->
+    let rec draw = function
+      | [] -> ()
+      | [ last ] -> draw_line_without_casing context ~stroke last first
+      | start :: (finish :: _ as remaining) ->
+        draw_line_without_casing context ~stroke start finish;
+        draw remaining
+    in
+    draw points
+;;
+
+let rounded_polygon context ~radius ~fill ?stroke points =
+  match List.map points ~f:(fun (x, y) -> Float.of_int x, Float.of_int y) with
+  | [] | [ _ ] | [ _; _ ] -> ()
+  | points ->
+    let points = Array.of_list points in
+    let point_count = Array.length points in
+    let rounded_points =
+      Array.mapi points ~f:(fun index vertex ->
+        let previous = points.((index + point_count - 1) % point_count)
+        and next = points.((index + 1) % point_count) in
+        let curve_start, curve_end =
+          rounded_corner_tangent_points ~radius ~previous vertex ~next
+        in
+        quadratic_curve_points (curve_start, vertex, curve_end))
+      |> Array.to_list
+      |> List.concat
+    in
+    fill_polygon context ~fill rounded_points;
+    Option.iter stroke ~f:(fun stroke ->
+      stroke_closed_path context ~stroke rounded_points)
+;;
+
 let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   let rendered_text = Font.render_text font string ~size in
   let iter_black_pixels ~f =
@@ -396,5 +440,6 @@ module O = struct
   let draw_line = draw_line
   let draw_quadratic_curve = draw_quadratic_curve
   let rounded_path = rounded_path
+  let rounded_polygon = rounded_polygon
   let text = text
 end

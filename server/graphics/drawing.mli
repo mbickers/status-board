@@ -59,6 +59,14 @@ val draw_quadratic_curve
 
 val rounded_path : Context.t -> radius:int -> stroke:Stroke.t -> (int * int) list -> unit
 
+val rounded_polygon
+  :  Context.t
+  -> radius:int
+  -> fill:Fill.t
+  -> ?stroke:Stroke.t
+  -> (int * int) list
+  -> unit
+
 val text
   :  ?halo:int * Fill.t
   -> Context.t
@@ -96,6 +104,14 @@ module O : sig
     :  Context.t
     -> radius:int
     -> stroke:Stroke.t
+    -> (int * int) list
+    -> unit
+
+  val rounded_polygon
+    :  Context.t
+    -> radius:int
+    -> fill:Fill.t
+    -> ?stroke:Stroke.t
     -> (int * int) list
     -> unit
 

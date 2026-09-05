@@ -13,6 +13,7 @@ module Conditions = struct
   type t =
     { thunderstorm : bool
     ; cloudy : bool
+    ; rain : bool
     ; snow : bool
     }
   [@@deriving sexp]
@@ -23,6 +24,11 @@ end
 let classify_weather_code weather_code =
   { Conditions.thunderstorm = List.mem [ 95; 96; 99 ] weather_code ~equal:Int.equal
   ; cloudy = weather_code = 2 || weather_code = 3
+  ; rain =
+      List.mem
+        [ 51; 53; 55; 56; 57; 61; 63; 65; 66; 67; 80; 81; 82 ]
+        weather_code
+        ~equal:Int.equal
   ; snow = List.mem [ 71; 73; 75; 77; 85; 86 ] weather_code ~equal:Int.equal
   }
 ;;
@@ -32,6 +38,7 @@ module Forecast_current = struct
     { time : Time_ns.Alternate_sexp.t
     ; interval_seconds : int
     ; temperature_2m : float option
+    ; conditions : Conditions.t option
     ; uv_index : float option
     }
   [@@deriving sexp]
@@ -86,6 +93,7 @@ module Raw = struct
       { time : string
       ; interval : int
       ; temperature_2m : float option
+      ; weather_code : int option
       ; uv_index : float option
       }
     [@@deriving yojson] [@@yojson.allow_extra_fields]
@@ -206,6 +214,7 @@ let parse_forecast (forecast : Raw.Forecast.t) =
       { Forecast_current.time = current_time
       ; interval_seconds = forecast.current.interval
       ; temperature_2m = forecast.current.temperature_2m
+      ; conditions = Option.map forecast.current.weather_code ~f:classify_weather_code
       ; uv_index = forecast.current.uv_index
       }
   ; hourly
@@ -234,7 +243,7 @@ let fetch_weather ~coordinates () =
       (fetch
          ~url:
            [%string
-             "https://api.open-meteo.com/v1/forecast?latitude=%{latitude#Float}&longitude=%{longitude#Float}&current=temperature_2m,uv_index&hourly=temperature_2m,precipitation_probability,weather_code,uv_index&daily=sunrise,sunset&timezone=auto&forecast_hours=25"]
+             "https://api.open-meteo.com/v1/forecast?latitude=%{latitude#Float}&longitude=%{longitude#Float}&current=temperature_2m,weather_code,uv_index&hourly=temperature_2m,precipitation_probability,weather_code,uv_index&daily=sunrise,sunset&timezone=auto&forecast_hours=25"]
          ~decoder:Raw.Forecast.t_of_yojson)
       (fetch
          ~url:
