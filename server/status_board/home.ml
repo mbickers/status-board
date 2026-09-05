@@ -90,6 +90,39 @@ let moon_fill
   | false -> dark_fill point
 ;;
 
+let draw_sun_moon
+      context
+      ~light_fill
+      ~dark_fill
+      ~is_night
+      ~moon_phase
+      ~center:((center_x, center_y) as center)
+      ~radius
+  =
+  let open Graphics.Drawing.O in
+  let fill =
+    match is_night, moon_phase with
+    | false, _ | true, None -> light_fill
+    | true, Some phase -> moon_fill ~light_fill ~dark_fill ~center ~radius ~phase
+  in
+  (match is_night with
+   | true -> ()
+   | false ->
+     let tick_stroke = Stroke.create light_fill 5 in
+     let point distance angle =
+       ( Float.of_int center_x +. (Float.cos angle *. Float.of_int distance)
+       , Float.of_int center_y +. (Float.sin angle *. Float.of_int distance) )
+     in
+     List.iter (List.range 0 8) ~f:(fun index ->
+       let angle = Float.of_int index *. Float.pi /. 4. in
+       draw_line
+         context
+         ~stroke:tick_stroke
+         (point (radius + 10) angle)
+         (point (radius + 25) angle)));
+  circle context ~fill ~center ~radius
+;;
+
 let draw_cloud
       context
       ~fill
@@ -396,33 +429,6 @@ let draw
     Float.iround_nearest_exn sun_moon_x, Float.iround_nearest_exn sun_moon_y
   in
   let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
-  let sun_moon_fill =
-    match is_night, weather.moon_phase with
-    | false, _ | true, None -> alt_fill
-    | true, Some phase ->
-      moon_fill
-        ~light_fill:alt_fill
-        ~dark_fill:moon_dark_fill
-        ~center:sun_moon_center
-        ~radius:sun_moon_radius
-        ~phase
-  in
-  (match is_night with
-   | true -> ()
-   | false ->
-     let tick_stroke = Stroke.create alt_fill 5 in
-     let point distance angle =
-       ( Float.of_int sun_moon_center_x +. (Float.cos angle *. Float.of_int distance)
-       , Float.of_int sun_moon_center_y +. (Float.sin angle *. Float.of_int distance) )
-     in
-     List.iter (List.range 0 8) ~f:(fun index ->
-       let angle = Float.of_int index *. Float.pi /. 4. in
-       draw_line
-         context
-         ~stroke:tick_stroke
-         (point (sun_moon_radius + 8) angle)
-         (point (sun_moon_radius + 20) angle)));
-  circle context ~fill:sun_moon_fill ~center:sun_moon_center ~radius:sun_moon_radius;
   let temperature_text = fahrenheit_text weather.current_temperature_celsius
   and low_high_text =
     [ "l" ^ fahrenheit_text weather.low_temperature_celsius
@@ -452,44 +458,6 @@ let draw
     - ((rendered_temperature.height + text_spacing + rendered_low_high.height + uv_height)
        / 2)
   in
-  draw_centered_text
-    context
-    ~font
-    ~fill:black
-    ~size:temperature_size
-    ~baseline_y:(text_top + rendered_temperature.baseline_y)
-    ~left:(sun_moon_center_x - sun_moon_radius)
-    ~right:(sun_moon_center_x + sun_moon_radius)
-    temperature_text;
-  draw_centered_text
-    context
-    ~font
-    ~fill:black
-    ~size:secondary_text_size
-    ~baseline_y:
-      (text_top
-       + rendered_temperature.height
-       + text_spacing
-       + rendered_low_high.baseline_y)
-    ~left:(sun_moon_center_x - sun_moon_radius)
-    ~right:(sun_moon_center_x + sun_moon_radius)
-    low_high_text;
-  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
-    draw_centered_text
-      context
-      ~font
-      ~fill:black
-      ~size:secondary_text_size
-      ~baseline_y:
-        (text_top
-         + rendered_temperature.height
-         + text_spacing
-         + rendered_low_high.height
-         + text_spacing
-         + rendered_uv.baseline_y)
-      ~left:(sun_moon_center_x - sun_moon_radius)
-      ~right:(sun_moon_center_x + sun_moon_radius)
-      uv_text);
   rect context ~fill:faded_water_fill (0, map_faded_top) (w, h);
   rounded_polygon
     context
@@ -627,6 +595,52 @@ let draw
     status_text_padding + rendered_text.origin_x);
   draw_status_text updated_text ~origin_x:(fun rendered_text ->
     w - status_text_padding - rendered_text.width + rendered_text.origin_x);
+  draw_sun_moon
+    context
+    ~light_fill:alt_fill
+    ~dark_fill:moon_dark_fill
+    ~is_night
+    ~moon_phase:weather.moon_phase
+    ~center:sun_moon_center
+    ~radius:sun_moon_radius;
+  draw_centered_text
+    context
+    ~font
+    ~fill:black
+    ~size:temperature_size
+    ~baseline_y:(text_top + rendered_temperature.baseline_y)
+    ~left:(sun_moon_center_x - sun_moon_radius)
+    ~right:(sun_moon_center_x + sun_moon_radius)
+    temperature_text;
+  draw_centered_text
+    context
+    ~font
+    ~fill:black
+    ~size:secondary_text_size
+    ~baseline_y:
+      (text_top
+       + rendered_temperature.height
+       + text_spacing
+       + rendered_low_high.baseline_y)
+    ~left:(sun_moon_center_x - sun_moon_radius)
+    ~right:(sun_moon_center_x + sun_moon_radius)
+    low_high_text;
+  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
+    draw_centered_text
+      context
+      ~font
+      ~fill:black
+      ~size:secondary_text_size
+      ~baseline_y:
+        (text_top
+         + rendered_temperature.height
+         + text_spacing
+         + rendered_low_high.height
+         + text_spacing
+         + rendered_uv.baseline_y)
+      ~left:(sun_moon_center_x - sun_moon_radius)
+      ~right:(sun_moon_center_x + sun_moon_radius)
+      uv_text);
   (match weather.conditions with
    | Weather_info.Conditions.Not_cloudy -> ()
    | Cloudy cloudy_conditions ->
