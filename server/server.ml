@@ -6,6 +6,7 @@ let run ~cache_path ~port =
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
   let home_status_board = Home.status_board in
   let cache = Feeds.Cache.create ~path:cache_path in
+  let messages_filename = "messages.sexp" in
   let image_path input = [%string "/image/home?%{Renderer.url_query_string input}"] in
   let%bind _server =
     Cohttp_async.Server.create_expert
@@ -21,6 +22,10 @@ let run ~cache_path ~port =
            |> String.split ~on:'/'
          in
          match Cohttp.Request.meth request, path with
+         | `GET, [ "" ] ->
+           Http.respond_file ~content_type:"text/html; charset=utf-8" "server/index.html"
+         | `GET, [ "style.css" ] ->
+           Http.respond_file ~content_type:"text/css; charset=utf-8" "server/style.css"
          | `GET, [ "wait-for-restart" ] ->
            Autoreload_on_restart.respond autoreload request
          | `GET, [ "preview"; "home" ] ->
@@ -30,7 +35,21 @@ let run ~cache_path ~port =
              ~status_board:home_status_board
              request
          | `GET, [ "image"; "home" ] ->
-           Renderer.respond ~cache ~status_board:home_status_board request
+           let%bind message = Message.latest ~filename:messages_filename in
+           (match message with
+            | Ok message ->
+              Renderer.respond ~cache ~message ~status_board:home_status_board request
+            | Error error ->
+              Http.respond_string
+                ~status:`Internal_server_error
+                (Error.to_string_hum error))
+         | _, [ "messages" ] ->
+           Message.respond
+             ~filename:messages_filename
+             ~validate:(fun message ->
+               Home.render_message message |> Or_error.map ~f:ignore)
+             ~body
+             request
          | _, "api" :: _ ->
            Trmnl.respond
              ~base_url:"/api"

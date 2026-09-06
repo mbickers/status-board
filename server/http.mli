@@ -8,3 +8,8 @@ val respond_string
   -> ?status:Cohttp.Code.status_code
   -> string
   -> Cohttp_async.Server.response_action Deferred.t
+
+val respond_file
+  :  content_type:string
+  -> string
+  -> Cohttp_async.Server.response_action Deferred.t

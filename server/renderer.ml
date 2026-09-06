@@ -20,7 +20,7 @@ let url_query_string input =
   Uri.encoded_of_query (("request", [ request_id ]) :: query)
 ;;
 
-let respond ~cache ~(status_board : Status_board.t) request =
+let respond ~cache ~message ~(status_board : Status_board.t) request =
   let input =
     let uri = Cohttp.Request.uri request in
     match Uri.get_query_param uri "input" with
@@ -43,7 +43,7 @@ let respond ~cache ~(status_board : Status_board.t) request =
   in
   let%bind rendered =
     match input with
-    | Ok input -> status_board.render input cache
+    | Ok input -> status_board.render input cache ~message
     | Error error -> return (Error error)
   in
   match rendered with

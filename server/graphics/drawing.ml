@@ -411,8 +411,14 @@ let rounded_polygon context ~radius ~fill ?stroke points =
       stroke_closed_path context ~stroke rounded_points)
 ;;
 
-let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
-  let rendered_text = Font.render_text font string ~size in
+let blit_rendered_text
+      ?halo
+      context
+      ~fill
+      ~origin_x
+      ~baseline_y
+      (rendered_text : Font.Rendered_text.t)
+  =
   let iter_black_pixels ~f =
     for y = 0 to rendered_text.height - 1 do
       for x = 0 to rendered_text.width - 1 do
@@ -441,6 +447,11 @@ let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
   iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
 ;;
 
+let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
+  let rendered_text = Font.render_text font string ~size in
+  blit_rendered_text ?halo context ~fill ~origin_x ~baseline_y rendered_text
+;;
+
 module O = struct
   module Context = Context
   module Anchor = Anchor
@@ -460,5 +471,6 @@ module O = struct
   let draw_quadratic_curve = draw_quadratic_curve
   let rounded_path = rounded_path
   let rounded_polygon = rounded_polygon
+  let blit_rendered_text = blit_rendered_text
   let text = text
 end

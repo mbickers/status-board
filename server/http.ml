@@ -17,3 +17,14 @@ let respond_string ?headers ?status body =
   let%bind response = Cohttp_async.Server.respond_string ?headers ?status body in
   return (`Response response)
 ;;
+
+let respond_file ~content_type filename =
+  let%bind contents =
+    Monitor.try_with_or_error (fun () -> Reader.file_contents filename)
+  in
+  match contents with
+  | Ok contents ->
+    respond_string ~headers:(Cohttp.Header.init_with "content-type" content_type) contents
+  | Error error ->
+    respond_string ~status:`Internal_server_error (Error.to_string_hum error)
+;;

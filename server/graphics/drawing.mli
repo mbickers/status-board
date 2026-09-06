@@ -68,6 +68,15 @@ val rounded_polygon
   -> (int * int) list
   -> unit
 
+val blit_rendered_text
+  :  ?halo:int * Fill.t
+  -> Context.t
+  -> fill:Fill.t
+  -> origin_x:int
+  -> baseline_y:int
+  -> Font.Rendered_text.t
+  -> unit
+
 val text
   :  ?halo:int * Fill.t
   -> Context.t
@@ -115,6 +124,15 @@ module O : sig
     -> fill:Fill.t
     -> ?stroke:Stroke.t
     -> (int * int) list
+    -> unit
+
+  val blit_rendered_text
+    :  ?halo:int * Fill.t
+    -> Context.t
+    -> fill:Fill.t
+    -> origin_x:int
+    -> baseline_y:int
+    -> Font.Rendered_text.t
     -> unit
 
   val text

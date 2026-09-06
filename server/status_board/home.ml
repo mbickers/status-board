@@ -1,21 +1,34 @@
 open! Core
 open! Async
 
+let max_width_message = String.make 14 'W'
+let status_text_size = 31.
+let font = lazy (Graphics.Font.create ~ttf_file:"server/fonts/inter_medium.ttf")
+
+let render_message message =
+  let%bind.Or_error font = Lazy.force font in
+  let rendered = Graphics.Font.render_text font message ~size:status_text_size in
+  let limit = Graphics.Font.render_text font max_width_message ~size:status_text_size in
+  match rendered.width <= limit.width with
+  | true -> Ok rendered
+  | false ->
+    Or_error.errorf "message too wide (%d of %d pixel limit)" rendered.width limit.width
+;;
+
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
   let rendered_text = Graphics.Font.render_text font text ~size in
-  Graphics.Drawing.text
+  Graphics.Drawing.blit_rendered_text
     context
-    ~font
     ~fill
     ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
     ~baseline_y
-    ~size
-    text
+    rendered_text
 ;;
 
 module Draw_inputs = struct
   type t =
     { device_status : Status_board.Device_status.t
+    ; message : string option
     ; weather : Weather_info.t
     ; bridge_status : Citibike_status.t
     ; roebling_status : Citibike_status.t
@@ -226,24 +239,26 @@ let draw_cloud
           ~center:(center_x, top + snowflake_radius))
 ;;
 
-let draw
-      ~font
-      ~device_status
-      ~weather
-      ~bridge_status
-      ~roebling_status
-      ~vesey_status
-      ~west_status
-      ~barclay_status
-      ~fulton_status
-      ~bedford_status
-      ~marcy_status
-      ~now
-  =
+let draw ~font draw_inputs =
+  let { Draw_inputs.device_status
+      ; message
+      ; weather
+      ; bridge_status
+      ; roebling_status
+      ; vesey_status
+      ; west_status
+      ; barclay_status
+      ; fulton_status
+      ; bedford_status
+      ; marcy_status
+      ; now
+      }
+    =
+    draw_inputs
+  in
   let open Graphics.Drawing.O in
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
-  let secondary_text_size = 31. in
   let is_night, sun_moon_progress_frac = day_night_phase weather ~at:now in
   let base_color =
     match is_night with
@@ -265,6 +280,39 @@ let draw
   (* Short geometry variable names keep the function legible. *)
   let w = 800
   and h = 480 in
+  let voltage_text =
+    match device_status.Status_board.Device_status.battery_voltage with
+    | Some battery_voltage ->
+      [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
+    | None -> "voltage unknown"
+  and updated_text =
+    [ "updated"; Time_ns_unix.format now "%H:%M" ~zone:display_zone ]
+    |> String.concat ~sep:" "
+  in
+  let status_text_padding = base_padding in
+  let rendered_voltage =
+    Graphics.Font.render_text font voltage_text ~size:status_text_size
+  and rendered_updated =
+    Graphics.Font.render_text font updated_text ~size:status_text_size
+  and rendered_status_height =
+    Graphics.Font.render_text font "Ag" ~size:status_text_size
+  in
+  let status_text_baseline = status_text_padding + rendered_status_height.baseline_y in
+  let%bind.Or_error message =
+    match message with
+    | None -> Ok None
+    | Some message ->
+      let message =
+        String.map message ~f:(fun character ->
+          match Char.is_whitespace character with
+          | true -> ' '
+          | false -> character)
+        |> String.strip
+      in
+      (match String.is_empty message with
+       | true -> Ok None
+       | false -> render_message message |> Or_error.map ~f:Option.some)
+  in
   let image = Image.create_grey ~max_val:1 w h in
   let context = Context.create image in
   let black = Fill.solid `b in
@@ -414,8 +462,12 @@ let draw
   let sun_moon_radius = 69 in
   let sun_moon_left = screen_edge_padding + sun_moon_radius
   and sun_moon_right = w - screen_edge_padding - sun_moon_radius
-  and sun_moon_peak_y = screen_edge_padding + sun_moon_radius
-  and sun_moon_endpoint_y = map_faded_top - screen_edge_padding - sun_moon_radius in
+  and sun_moon_peak_y = status_text_baseline + screen_edge_padding + sun_moon_radius
+  and sun_moon_endpoint_y =
+    Int.max
+      (status_text_baseline + screen_edge_padding + sun_moon_radius)
+      (map_faded_top - screen_edge_padding - sun_moon_radius)
+  in
   let sun_moon_x =
     Float.of_int sun_moon_left
     +. (sun_moon_progress_frac *. Float.of_int (sun_moon_right - sun_moon_left))
@@ -443,14 +495,14 @@ let draw
   let rendered_temperature =
     Graphics.Font.render_text font temperature_text ~size:temperature_size
   and rendered_low_high =
-    Graphics.Font.render_text font low_high_text ~size:secondary_text_size
+    Graphics.Font.render_text font low_high_text ~size:status_text_size
   and rendered_uv =
     Option.bind weather.maximum_uv_index ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
         let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (text, Graphics.Font.render_text font text ~size:secondary_text_size))
+        Some (text, Graphics.Font.render_text font text ~size:status_text_size))
   in
   let uv_height =
     Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
@@ -574,30 +626,6 @@ let draw
     ~title:"ful"
     ~box_size:parking_status_size
     fulton_status;
-  let voltage_text =
-    match device_status.Status_board.Device_status.battery_voltage with
-    | Some battery_voltage ->
-      [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
-    | None -> "voltage unknown"
-  and updated_text =
-    [ "updated"; Time_ns_unix.format now "%H:%M" ~zone:display_zone ]
-    |> String.concat ~sep:" "
-  and status_text_padding = 8 in
-  let draw_status_text ~origin_x string =
-    let rendered_text = Graphics.Font.render_text font string ~size:secondary_text_size in
-    text
-      context
-      ~font
-      ~fill:alt_fill
-      ~origin_x:(origin_x rendered_text)
-      ~baseline_y:(status_text_padding + rendered_text.baseline_y)
-      ~size:secondary_text_size
-      string
-  in
-  draw_status_text voltage_text ~origin_x:(fun rendered_text ->
-    status_text_padding + rendered_text.origin_x);
-  draw_status_text updated_text ~origin_x:(fun rendered_text ->
-    w - status_text_padding - rendered_text.width + rendered_text.origin_x);
   draw_sun_moon
     context
     ~light_fill:alt_fill
@@ -606,6 +634,30 @@ let draw
     ~moon_phase:weather.moon_phase
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
+  text
+    context
+    ~font
+    ~fill:alt_fill
+    ~origin_x:(status_text_padding + rendered_voltage.origin_x)
+    ~baseline_y:status_text_baseline
+    ~size:status_text_size
+    voltage_text;
+  text
+    context
+    ~font
+    ~fill:alt_fill
+    ~origin_x:
+      (w - status_text_padding - rendered_updated.width + rendered_updated.origin_x)
+    ~baseline_y:status_text_baseline
+    ~size:status_text_size
+    updated_text;
+  Option.iter message ~f:(fun message ->
+    blit_rendered_text
+      context
+      ~fill:(Fill.solid inverse_base_color)
+      ~baseline_y:status_text_baseline
+      ~origin_x:(((w - message.width) / 2) + message.origin_x)
+      message);
   draw_centered_text
     context
     ~font
@@ -619,7 +671,7 @@ let draw
     context
     ~font
     ~fill:black
-    ~size:secondary_text_size
+    ~size:status_text_size
     ~baseline_y:
       (text_top
        + rendered_temperature.height
@@ -633,7 +685,7 @@ let draw
       context
       ~font
       ~fill:black
-      ~size:secondary_text_size
+      ~size:status_text_size
       ~baseline_y:
         (text_top
          + rendered_temperature.height
@@ -668,7 +720,7 @@ let draw
     let left = screen_edge_padding + padding in
     let right = w - screen_edge_padding - offset_x - padding in
     let seed = Int.hash (Time_ns.hash now + index) in
-    let top = 60 in
+    let top = status_text_baseline + screen_edge_padding + padding - Int.min 0 offset_y in
     let bottom = map_faded_top - screen_edge_padding - padding in
     let height = (bottom - top + 1) / count in
     let y = top + (index * height) + (seed % height) in
@@ -715,7 +767,7 @@ let draw
      in
      draw_bird context ~wing_width ~center:(x, y);
      draw_bird context ~wing_width ~center:(x + spacing, y - 4));
-  image
+  Ok image
 ;;
 
 module Preset = struct
@@ -744,7 +796,7 @@ let weather_coordinates =
 
 let query_weather cache = Feeds.Weather.query cache ~coordinates:weather_coordinates
 
-let live_draw_inputs cache ~device_status ~now =
+let live_draw_inputs cache ~device_status ~message ~now =
   let bedford_rows =
     [ { Subway_status.Selection.display_route = `L
       ; route_ids = [ "L" ]
@@ -804,6 +856,7 @@ let live_draw_inputs cache ~device_status ~now =
        Subway_status.create mta_subway_status ~now ~station_id:"M16" ~rows:marcy_rows
      in
      { Draw_inputs.device_status
+     ; message
      ; weather
      ; bridge_status
      ; roebling_status
@@ -817,7 +870,7 @@ let live_draw_inputs cache ~device_status ~now =
      })
 ;;
 
-let preset_draw_inputs ~font ~now ~weather =
+let preset_draw_inputs ~font ~message ~now ~weather =
   let _, widest_two_digit_number =
     Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
   in
@@ -842,6 +895,7 @@ let preset_draw_inputs ~font ~now ~weather =
   let bedford_status = { Subway_status.rows = [ row `L ]; has_alert = false }
   and marcy_status = { Subway_status.rows = [ row `J; row `M ]; has_alert = false } in
   { Draw_inputs.device_status = { battery_voltage = None }
+  ; message
   ; weather
   ; bridge_status = citibike_status
   ; roebling_status = citibike_status
@@ -855,18 +909,17 @@ let preset_draw_inputs ~font ~now ~weather =
   }
 ;;
 
-let render input cache =
+let render input cache ~message =
   let now = Time_ns.now () in
-  let%bind.Deferred.Or_error font =
-    Graphics.Font.create ~ttf_file:"server/fonts/inter_medium.ttf" |> return
-  in
+  let%bind.Deferred.Or_error font = Lazy.force font |> return in
   let%bind.Deferred.Or_error draw_inputs =
     match input with
     | Status_board.Input.Device device_status ->
-      live_draw_inputs cache ~device_status ~now
+      live_draw_inputs cache ~device_status ~message ~now
     | Preview None ->
       live_draw_inputs
         cache
+        ~message
         ~device_status:{ Status_board.Device_status.battery_voltage = Some 4.1 }
         ~now
     | Preview (Some preset) ->
@@ -901,7 +954,8 @@ let render input cache =
                  ~zone:display_zone
            }
          in
-         return (Ok (preset_draw_inputs ~font ~now ~weather))
+         return
+           (Ok (preset_draw_inputs ~font ~message:(Some max_width_message) ~now ~weather))
        | Day_stormy ->
          let now =
            Time_ns.occurrence
@@ -933,7 +987,7 @@ let render input cache =
                  ~zone:display_zone
            }
          in
-         return (Ok (preset_draw_inputs ~font ~now ~weather))
+         return (Ok (preset_draw_inputs ~font ~message ~now ~weather))
        | Errors_alerts ->
          let weather =
            { Weather_info.current_temperature_celsius = None
@@ -971,6 +1025,7 @@ let render input cache =
          return
            (Ok
               { Draw_inputs.device_status = { battery_voltage = None }
+              ; message
               ; weather
               ; bridge_status = citibike_status
               ; roebling_status = citibike_status
@@ -984,37 +1039,7 @@ let render input cache =
               ; now
               }))
   in
-  let { Draw_inputs.device_status
-      ; weather
-      ; bridge_status
-      ; roebling_status
-      ; vesey_status
-      ; west_status
-      ; barclay_status
-      ; fulton_status
-      ; bedford_status
-      ; marcy_status
-      ; now
-      }
-    =
-    draw_inputs
-  in
-  let buffer =
-    draw
-      ~font
-      ~device_status
-      ~weather
-      ~bridge_status
-      ~roebling_status
-      ~vesey_status
-      ~west_status
-      ~barclay_status
-      ~fulton_status
-      ~bedford_status
-      ~marcy_status
-      ~now
-  in
-  return (Ok buffer)
+  return (draw ~font draw_inputs)
 ;;
 
 let status_board =

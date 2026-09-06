@@ -1,0 +1,4 @@
+body { font-family: system-ui, sans-serif; margin: 2rem; }
+.presets { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+.presets [aria-current="page"] { font-weight: bold; }
+.display { border: 1px solid #888; image-rendering: pixelated; }

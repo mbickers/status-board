@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>messages</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <form method="post">
+    <label for="message">write us a message (not too long, there's a width limit):</label><br>
+    {{#error}}<span style="color: red">{{.}}</span><br>{{/error}}
+    <input id="message" name="message" type="text" value="{{attempted}}" {{#error}}aria-invalid="true"{{/error}}>
+    <button type="submit">send</button>
+  </form>
+  {{#messages}}
+  <p><i>{{written_at}}</i>: <span style="white-space: pre-wrap">{{text}}</span></p>
+  {{/messages}}
+</body>
+</html>
