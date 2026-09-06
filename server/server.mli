@@ -7,4 +7,4 @@ val render
   -> filename:string
   -> unit Deferred.Or_error.t
 
-val run : cache_path:string -> port:int -> unit Deferred.Or_error.t
+val run : cache_path:string -> port:int -> autoreload:bool -> unit Deferred.Or_error.t

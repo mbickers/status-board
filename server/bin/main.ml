@@ -6,8 +6,11 @@ let start =
     ~summary:"Run the status board server"
     (let%map_open.Command cache_path =
        flag "-cache-path" (required string) ~doc:"PATH cache directory"
-     and port = flag "-port" (required int) ~doc:"PORT HTTP port" in
-     fun () -> Server.run ~cache_path ~port)
+     and port = flag "-port" (required int) ~doc:"PORT HTTP port"
+     and autoreload =
+       flag "-autoreload" no_arg ~doc:" Reload previews when the server restarts"
+     in
+     fun () -> Server.run ~cache_path ~port ~autoreload)
 ;;
 
 let render =

@@ -132,6 +132,7 @@ depends = ["deps", "schemas"]
 # Keep the watch process's Dune lock separate so normal builds can run concurrently.
 run = '''
 opam exec -- dune exec --watch --build-dir=_build_dev server/bin/main.exe -- start \
+  -autoreload \
   -cache-path _cache \
   -port 8080
 '''

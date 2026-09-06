@@ -11,7 +11,10 @@ let page_html ~autoreload_script ~template ~image_path ~debug_preset ~debug_pres
   let template_data =
     `O
       [ "image_url", `String image_path
-      ; "autoreload_script", `String autoreload_script
+      ; ( "autoreload_script"
+        , match autoreload_script with
+          | None -> `Null
+          | Some script -> `String script )
       ; "default_url", `String (preview_url ~debug_preset:None)
       ; "default_selected", `Bool (Option.is_none debug_preset)
       ; ( "debug_presets"

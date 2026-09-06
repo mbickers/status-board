@@ -2,7 +2,7 @@ open! Core
 open! Async
 
 val respond
-  :  autoreload_script:string
+  :  autoreload_script:string option
   -> image_path:(string option -> string)
   -> status_board:Status_board.t
   -> Cohttp.Request.t

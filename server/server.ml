@@ -10,9 +10,13 @@ let render ~cache_path ~preset ~filename =
   Deferred.Or_error.try_with (fun () -> Writer.save filename ~contents:(Bmp.encode image))
 ;;
 
-let run ~cache_path ~port =
+let run ~cache_path ~port ~autoreload =
   (* I want to replace repeated hardcoded route with a handler DSL. *)
-  let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in
+  let autoreload =
+    match autoreload with
+    | false -> None
+    | true -> Some (Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ])
+  in
   let home_status_board = Home.status_board in
   let cache = Feeds.Cache.create ~path:cache_path in
   let messages_filename = "messages.sexp" in
@@ -36,10 +40,12 @@ let run ~cache_path ~port =
          | `GET, [ "style.css" ] ->
            Http.respond_file ~content_type:"text/css; charset=utf-8" "server/style.css"
          | `GET, [ "wait-for-restart" ] ->
-           Autoreload_on_restart.respond autoreload request
+           (match autoreload with
+            | None -> Http.respond_string ~status:`Not_found "Not found"
+            | Some autoreload -> Autoreload_on_restart.respond autoreload request)
          | `GET, [ "preview"; "home" ] ->
            Preview.respond
-             ~autoreload_script:(Autoreload_on_restart.script autoreload)
+             ~autoreload_script:(Option.map autoreload ~f:Autoreload_on_restart.script)
              ~image_path:(fun debug_preset -> image_path (Preview debug_preset))
              ~status_board:home_status_board
              request
