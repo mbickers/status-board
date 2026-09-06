@@ -6,6 +6,11 @@ let status_text_size = 31.
 let font = lazy (Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
 
 let render_message message =
+  let%bind.Or_error () =
+    match String.for_all message ~f:(fun character -> Char.to_int character < 128) with
+    | true -> Ok ()
+    | false -> Or_error.error_string "messages must contain only ASCII characters"
+  in
   let%bind.Or_error font = Lazy.force font in
   let rendered = Font.render_text font message ~size:status_text_size in
   let limit = Font.render_text font max_width_message ~size:status_text_size in
