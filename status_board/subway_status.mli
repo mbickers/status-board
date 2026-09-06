@@ -33,11 +33,11 @@ val width : Status_box.Style.t -> int
 val height : Status_box.Style.t -> 'display_route t -> int
 
 val draw
-  :  Graphics.Drawing.Context.t
-  -> anchor:Graphics.Drawing.Anchor.t
+  :  Drawing.Context.t
+  -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
   -> title:string
   -> display_route_text:('display_route -> string)
-  -> route_fill:('display_route -> Graphics.Drawing.Fill.t)
+  -> route_fill:('display_route -> Drawing.Fill.t)
   -> 'display_route t
   -> unit

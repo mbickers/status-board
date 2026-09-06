@@ -3,12 +3,12 @@ open! Async
 
 let max_width_message = String.make 14 'W'
 let status_text_size = 31.
-let font = lazy (Graphics.Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
+let font = lazy (Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
 
 let render_message message =
   let%bind.Or_error font = Lazy.force font in
-  let rendered = Graphics.Font.render_text font message ~size:status_text_size in
-  let limit = Graphics.Font.render_text font max_width_message ~size:status_text_size in
+  let rendered = Font.render_text font message ~size:status_text_size in
+  let limit = Font.render_text font max_width_message ~size:status_text_size in
   match rendered.width <= limit.width with
   | true -> Ok rendered
   | false ->
@@ -16,8 +16,8 @@ let render_message message =
 ;;
 
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
-  let rendered_text = Graphics.Font.render_text font text ~size in
-  Graphics.Drawing.blit_rendered_text
+  let rendered_text = Font.render_text font text ~size in
+  Drawing.blit_rendered_text
     context
     ~fill
     ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
@@ -112,7 +112,7 @@ let draw_sun_moon
       ~center:((center_x, center_y) as center)
       ~radius
   =
-  let open Graphics.Drawing.O in
+  let open Drawing.O in
   let fill =
     match is_night, moon_phase with
     | false, _ | true, None -> light_fill
@@ -140,9 +140,9 @@ let draw_bird context ~wing_width ~center:(x, y) =
   let x = Float.of_int x
   and y = Float.of_int y in
   let wing_width = Float.of_int wing_width in
-  let stroke = Graphics.Drawing.Stroke.solid `b 2 in
+  let stroke = Drawing.Stroke.solid `b 2 in
   List.iter [ -1.; 1. ] ~f:(fun direction ->
-    Graphics.Drawing.draw_quadratic_curve
+    Drawing.draw_quadratic_curve
       context
       ~stroke
       ( (x, y)
@@ -158,7 +158,7 @@ let draw_cloud
       ~height
       ({ rain; snow; thunderstorm } : Weather_info.Cloudy_conditions.t)
   =
-  let open Graphics.Drawing.O in
+  let open Drawing.O in
   let width = 250 in
   let left = center_x - (width / 2) in
   let path =
@@ -256,7 +256,7 @@ let draw ~font draw_inputs =
     =
     draw_inputs
   in
-  let open Graphics.Drawing.O in
+  let open Drawing.O in
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
   let is_night, sun_moon_progress_frac = day_night_phase weather ~at:now in
@@ -290,13 +290,9 @@ let draw ~font draw_inputs =
     |> String.concat ~sep:" "
   in
   let status_text_padding = base_padding in
-  let rendered_voltage =
-    Graphics.Font.render_text font voltage_text ~size:status_text_size
-  and rendered_updated =
-    Graphics.Font.render_text font updated_text ~size:status_text_size
-  and rendered_status_height =
-    Graphics.Font.render_text font "Ag" ~size:status_text_size
-  in
+  let rendered_voltage = Font.render_text font voltage_text ~size:status_text_size
+  and rendered_updated = Font.render_text font updated_text ~size:status_text_size
+  and rendered_status_height = Font.render_text font "Ag" ~size:status_text_size in
   let status_text_baseline = status_text_padding + rendered_status_height.baseline_y in
   let%bind.Or_error message =
     match message with
@@ -328,7 +324,7 @@ let draw ~font draw_inputs =
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let maximum_citibike_count_width, _ =
-    Graphics.Font.max_width
+    Font.max_width
       font
       [ `Number (0, 99) ]
       ~size:(Status_box.Style.primary_font_size status_box_style)
@@ -358,12 +354,10 @@ let draw ~font draw_inputs =
     parking_grid_top - ((parking_status_height + base_padding) / 2)
   in
   let parking_grid_right = parking_grid_right_column + parking_status_width in
-  let l_fill : Graphics.Drawing.Fill.t =
-    Graphics.Drawing.Fill.bayer_exn ~white_frac:(9. /. 16.)
-  and j_fill : Graphics.Drawing.Fill.t =
-    Graphics.Drawing.Fill.bayer_exn ~white_frac:(1. /. 16.)
-  and m_fill : Graphics.Drawing.Fill.t =
-    Graphics.Drawing.Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.)
+  let l_fill : Drawing.Fill.t = Drawing.Fill.bayer_exn ~white_frac:(9. /. 16.)
+  and j_fill : Drawing.Fill.t = Drawing.Fill.bayer_exn ~white_frac:(1. /. 16.)
+  and m_fill : Drawing.Fill.t =
+    Drawing.Fill.bayer_exn ~offset:(1, 1) ~white_frac:(10. /. 16.)
   in
   let route_fill = function
     | `L -> l_fill
@@ -492,17 +486,15 @@ let draw ~font draw_inputs =
     |> String.concat ~sep:"  "
   and temperature_size = 70.
   and text_spacing = 4 in
-  let rendered_temperature =
-    Graphics.Font.render_text font temperature_text ~size:temperature_size
-  and rendered_low_high =
-    Graphics.Font.render_text font low_high_text ~size:status_text_size
+  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
+  and rendered_low_high = Font.render_text font low_high_text ~size:status_text_size
   and rendered_uv =
     Option.bind weather.maximum_uv_index ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
         let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (text, Graphics.Font.render_text font text ~size:status_text_size))
+        Some (text, Font.render_text font text ~size:status_text_size))
   in
   let uv_height =
     Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
@@ -871,9 +863,7 @@ let live_draw_inputs cache ~device_status ~message ~now =
 ;;
 
 let preset_draw_inputs ~font ~message ~now ~weather =
-  let _, widest_two_digit_number =
-    Graphics.Font.max_width font [ `Number (12, 99) ] ~size:20.
-  in
+  let _, widest_two_digit_number = Font.max_width font [ `Number (12, 99) ] ~size:20. in
   let widest_two_digit_number = Int.of_string widest_two_digit_number in
   let citibike_status =
     { Citibike_status.availability =

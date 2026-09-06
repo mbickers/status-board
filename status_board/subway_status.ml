@@ -72,12 +72,12 @@ let draw_bullet
         ((x - center_x) * (x - center_x)) + ((y - center_y) * (y - center_y))
         <= radius * radius
       with
-      | true -> Graphics.Drawing.Context.write context (x, y) (fill (x, y))
+      | true -> Drawing.Context.write context (x, y) (fill (x, y))
       | false -> ()
     done
   done;
-  let rendered_text = Graphics.Font.render_text font label ~size:font_size in
-  Graphics.Drawing.text
+  let rendered_text = Font.render_text font label ~size:font_size in
+  Drawing.text
     context
     ~font
     ~fill:text_fill
@@ -111,7 +111,7 @@ module Layout = struct
       Status_box.Style.horizontal_padding_between_text style
     and departure_font_size = Status_box.Style.primary_font_size style in
     let maximum_direction_text_width, _ =
-      Graphics.Font.max_width
+      Font.max_width
         font
         [ `Number (0, 99); `String ","; `Number (0, 99); `String ","; `Number (0, 99) ]
         ~size:departure_font_size
@@ -131,7 +131,7 @@ module Layout = struct
     and departure_font_size = Status_box.Style.primary_font_size style in
     let arrow_center_y = Float.of_int padding +. arrow_half_height
     and departure_line_height =
-      (Graphics.Font.render_text font "0" ~size:departure_font_size).height
+      (Font.render_text font "0" ~size:departure_font_size).height
     in
     let first_row_center_y =
       Int.of_float (arrow_center_y +. arrow_half_height)
@@ -168,7 +168,7 @@ let columns (layout : Layout.t) =
 
 let draw_directions context ~(layout : Layout.t) =
   let left, westbound_right, eastbound_left, right = columns layout in
-  let stroke = Graphics.Drawing.Stroke.solid `b 2 in
+  let stroke = Drawing.Stroke.solid `b 2 in
   let draw_arrow direction ~center_x =
     let tip_x, tail_x, arrowhead_x =
       match direction with
@@ -176,17 +176,13 @@ let draw_directions context ~(layout : Layout.t) =
       | `Right -> center_x + 9, center_x - 9, center_x + 3
     in
     let tip = Float.of_int tip_x, layout.arrow_center_y in
-    Graphics.Drawing.draw_line
-      context
-      ~stroke
-      (Float.of_int tail_x, layout.arrow_center_y)
-      tip;
-    Graphics.Drawing.draw_line
+    Drawing.draw_line context ~stroke (Float.of_int tail_x, layout.arrow_center_y) tip;
+    Drawing.draw_line
       context
       ~stroke
       tip
       (Float.of_int arrowhead_x, layout.arrow_center_y -. layout.arrow_half_height);
-    Graphics.Drawing.draw_line
+    Drawing.draw_line
       context
       ~stroke
       tip
@@ -211,16 +207,14 @@ let draw_row
     | minutes -> String.concat minutes ~sep:","
   in
   let fill = route_fill row.display_route in
-  let bullet_text_fill = Graphics.Drawing.Fill.solid `w
+  let bullet_text_fill = Drawing.Fill.solid `w
   and text_left, westbound_right, eastbound_left, text_right = columns layout in
   let draw_centered_text text ~left ~right =
-    let rendered_text =
-      Graphics.Font.render_text font text ~size:layout.departure_font_size
-    in
-    Graphics.Drawing.text
+    let rendered_text = Font.render_text font text ~size:layout.departure_font_size in
+    Drawing.text
       context
       ~font
-      ~fill:(Graphics.Drawing.Fill.solid `b)
+      ~fill:(Drawing.Fill.solid `b)
       ~origin_x:
         (left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
       ~baseline_y:(center_y - (rendered_text.height / 2) + rendered_text.baseline_y)
@@ -254,7 +248,7 @@ let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows; h
   let font = Status_box.Style.font style in
   let layout = Layout.create style ~row_count:(List.length rows) in
   let upper_left, lower_right =
-    Graphics.Drawing.Anchor.resolve anchor ~size:(layout.width, layout.height)
+    Drawing.Anchor.resolve anchor ~size:(layout.width, layout.height)
   in
   Status_box.draw context upper_left lower_right ~style ~title ~f:(fun context ~fill:_ ->
     draw_directions context ~layout;
@@ -274,12 +268,12 @@ let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows; h
     and right, _ = lower_right in
     let size = 30. in
     let alert_text = "!!" in
-    let rendered = Graphics.Font.render_text font alert_text ~size in
-    Graphics.Drawing.text
-      ~halo:(3, Graphics.Drawing.Fill.solid `w)
+    let rendered = Font.render_text font alert_text ~size in
+    Drawing.text
+      ~halo:(3, Drawing.Fill.solid `w)
       context
       ~font
-      ~fill:(Graphics.Drawing.Fill.solid `b)
+      ~fill:(Drawing.Fill.solid `b)
       ~origin_x:(right - rendered.width - 8 + rendered.origin_x)
       ~baseline_y:(top - (rendered.height / 2) + rendered.baseline_y + 3)
       ~size

@@ -47,8 +47,8 @@ let create (station : Feeds.Citibike.Station.t) =
 ;;
 
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
-  let rendered_text = Graphics.Font.render_text font text ~size in
-  Graphics.Drawing.text
+  let rendered_text = Font.render_text font text ~size in
+  Drawing.text
     context
     ~font
     ~fill
@@ -59,7 +59,7 @@ let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
 ;;
 
 let draw_box context ~anchor ~style ~title ~box_size t ~is_enabled ~f =
-  let upper_left, lower_right = Graphics.Drawing.Anchor.resolve anchor ~size:box_size in
+  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size in
   Status_box.draw
     context
     upper_left
@@ -69,9 +69,7 @@ let draw_box context ~anchor ~style ~title ~box_size t ~is_enabled ~f =
     ~fill:
       (match is_enabled with
        | true ->
-         Graphics.Drawing.Fill.fractional
-           ~frac:t.bikes_available_frac
-           ~frontier_angle_degrees:15.
+         Drawing.Fill.fractional ~frac:t.bikes_available_frac ~frontier_angle_degrees:15.
        | false -> fun _ -> Status_box.Style.error_fill style)
     ~f
 ;;
@@ -93,7 +91,7 @@ let draw_availability context ~anchor ~style ~title ~box_size t =
       match t.availability with
       | Availability.Not_renting -> ()
       | Renting { classic_bikes_available; electric_bikes_available } ->
-        let width, height = Graphics.Drawing.Context.size context in
+        let width, height = Drawing.Context.size context in
         let count_size = Status_box.Style.primary_font_size style
         and base_padding = Status_box.Style.base_padding style
         and horizontal_padding_between_text =
@@ -102,7 +100,7 @@ let draw_availability context ~anchor ~style ~title ~box_size t =
         let baseline_y = height - Status_box.Style.baseline_padding style
         and left = base_padding
         and right = width - base_padding in
-        let fill = Graphics.Drawing.Fill.invert fill in
+        let fill = Drawing.Fill.invert fill in
         let middle = (left + right) / 2 in
         let bikes_right = middle - (horizontal_padding_between_text / 2)
         and ebikes_left = middle + (horizontal_padding_between_text / 2) in
@@ -126,11 +124,8 @@ let draw_availability context ~anchor ~style ~title ~box_size t =
           ~right
           ebikes_available;
         let ebike_label_size = 22. in
-        let rendered_ebikes =
-          Graphics.Font.render_text font ebikes_available ~size:count_size
-        and rendered_ebike_label =
-          Graphics.Font.render_text font "e" ~size:ebike_label_size
-        in
+        let rendered_ebikes = Font.render_text font ebikes_available ~size:count_size
+        and rendered_ebike_label = Font.render_text font "e" ~size:ebike_label_size in
         draw_centered_text
           context
           ~font
@@ -164,12 +159,12 @@ let draw_parking context ~anchor ~style ~title ~box_size t =
       match t.parking with
       | Parking.Not_accepting_returns -> ()
       | Accepting_returns { docks_available } ->
-        let width, height = Graphics.Drawing.Context.size context in
+        let width, height = Drawing.Context.size context in
         let base_padding = Status_box.Style.base_padding style in
         draw_centered_text
           context
           ~font
-          ~fill:(Graphics.Drawing.Fill.invert fill)
+          ~fill:(Drawing.Fill.invert fill)
           ~size:(Status_box.Style.primary_font_size style)
           ~baseline_y:(height - Status_box.Style.baseline_padding style)
           ~left:base_padding

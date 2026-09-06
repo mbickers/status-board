@@ -1,6 +1,6 @@
 (library
  (name status_board)
  (wrapped false)
- (libraries core async feeds graphics imagelib)
+ (libraries core async feeds imagelib stb_truetype)
  (preprocess
   (pps ppx_jane)))

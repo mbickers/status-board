@@ -24,8 +24,8 @@ type t =
 val create : Feeds.Citibike.Station.t -> t
 
 val draw_availability
-  :  Graphics.Drawing.Context.t
-  -> anchor:Graphics.Drawing.Anchor.t
+  :  Drawing.Context.t
+  -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
   -> title:string
   -> box_size:int * int
@@ -33,8 +33,8 @@ val draw_availability
   -> unit
 
 val draw_parking
-  :  Graphics.Drawing.Context.t
-  -> anchor:Graphics.Drawing.Anchor.t
+  :  Drawing.Context.t
+  -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
   -> title:string
   -> box_size:int * int

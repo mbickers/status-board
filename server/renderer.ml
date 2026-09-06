@@ -52,7 +52,7 @@ let respond ~cache ~message ~(status_board : Status_board.t) request =
       ~headers:
         (Cohttp.Header.of_list
            [ "content-type", "image/bmp"; "cache-control", "no-store" ])
-      (Graphics.Bmp.encode image)
+      (Bmp.encode image)
   | Error error ->
     Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
 ;;

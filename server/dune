@@ -1,14 +1,5 @@
 (library
  (name server)
- (libraries
-  core
-  async
-  cohttp-async
-  feeds
-  graphics
-  mustache
-  status_board
-  uri
-  yojson)
+ (libraries core async cohttp-async feeds mustache status_board uri yojson)
  (preprocess
   (pps ppx_jane)))
