@@ -158,13 +158,26 @@ let draw_bird context ~wing_width ~center:(x, y) =
 let draw_cloud
       context
       ~fill
+      ~graph_style
+      ~padding
       ~center_x
       ~base_y
-      ~height
-      ({ rain; snow; thunderstorm } : Weather_info.Cloudy_conditions.t)
+      ~graph_height
+      (precipitation : Weather_info.Precipitation.t option)
   =
+  let graph_width = 150 in
   let open Drawing.O in
-  let width = 250 in
+  let rain, snow, thunderstorm =
+    match precipitation with
+    | None -> false, false, false
+    | Some { precipitation = { kind; thunder }; _ } ->
+      (match kind with
+       | Rain -> true, false, thunder
+       | Snow -> false, true, thunder
+       | Rain_and_snow -> true, true, thunder)
+  in
+  let height = graph_height + (2 * padding) in
+  let width = graph_width + height + (2 * padding) in
   let left = center_x - (width / 2) in
   let path =
     Path_resolver_step.resolve
@@ -179,6 +192,56 @@ let draw_cloud
       ]
   in
   rounded_polygon context ~radius:20 ~fill path;
+  Option.iter precipitation ~f:(fun precipitation ->
+    let samples = precipitation.samples in
+    match samples, List.last samples with
+    | [], _ | _, None -> ()
+    | first :: _, Some last when Time_ns.compare first.time last.time >= 0 -> ()
+    | first :: _, Some last ->
+      let graph_starts_at = first.time
+      and graph_ends_at = last.time in
+      let duration = Time_ns.diff graph_ends_at graph_starts_at |> Time_ns.Span.to_sec in
+      let points =
+        List.map samples ~f:(fun sample ->
+          let x_frac =
+            Time_ns.Span.to_sec (Time_ns.diff sample.time graph_starts_at) /. duration
+          in
+          let y_frac =
+            Option.map sample.probability_frac ~f:(fun y_frac ->
+              (* Keep small nonzero probabilities visibly above the x-axis. *)
+              match Float.(y_frac > 0.) with
+              | true -> Float.max 0.1 y_frac
+              | false -> y_frac)
+          in
+          { Graph.Point.x_frac; y_frac })
+      in
+      let tick time =
+        { Graph.Tick.position_frac =
+            Time_ns.Span.to_sec (Time_ns.diff time graph_starts_at) /. duration
+        ; label = Some (Time_ns_unix.format time "%H:%M" ~zone:display_zone)
+        }
+      in
+      let hourly_ticks =
+        List.range 1 (Float.iround_up_exn (duration /. 3600.))
+        |> List.map ~f:(fun hour ->
+          { Graph.Tick.position_frac = Float.of_int hour *. 3600. /. duration
+          ; label = None
+          })
+      in
+      let labeled_tick_extra_length =
+        graph_style.Graph.Style.labeled_tick_length - graph_style.tick_length
+      in
+      Graph.draw
+        context
+        ~bottom_center:(center_x, base_y - padding - labeled_tick_extra_length)
+        ~size:(graph_width, graph_height)
+        ~style:graph_style
+        ~x_ticks:(tick graph_starts_at :: tick graph_ends_at :: hourly_ticks)
+        ~y_ticks:
+          [ { position_frac = 0.5; label = Some "50%" }
+          ; { position_frac = 1.; label = Some "100%" }
+          ]
+        ~points);
   let symbol_top = base_y + 12 in
   (match rain with
    | false -> ()
@@ -226,22 +289,23 @@ let draw_cloud
        ; center_x - waist_half_width, symbol_top + lower_waist_y
        ; center_x - half_width, symbol_top + lower_waist_y
        ]);
-  match snow with
-  | false -> ()
-  | true ->
-    let snowflake_radius = 17 in
-    let stroke = Stroke.create fill 4 in
-    List.iter
-      [ left + (width / 6), base_y + 30
-      ; left + (5 * width / 12), base_y + 10
-      ; left + (4 * width / 5), base_y + 15
-      ]
-      ~f:(fun (center_x, top) ->
-        star
-          context
-          ~stroke
-          ~radius:snowflake_radius
-          ~center:(center_x, top + snowflake_radius))
+  (match snow with
+   | false -> ()
+   | true ->
+     let snowflake_radius = 17 in
+     let stroke = Stroke.create fill 4 in
+     List.iter
+       [ left + (width / 6), base_y + 30
+       ; left + (5 * width / 12), base_y + 10
+       ; left + (4 * width / 5), base_y + 15
+       ]
+       ~f:(fun (center_x, top) ->
+         star
+           context
+           ~stroke
+           ~radius:snowflake_radius
+           ~center:(center_x, top + snowflake_radius)));
+  (left, base_y - height), (left + width, base_y)
 ;;
 
 let draw ~font draw_inputs =
@@ -275,8 +339,21 @@ let draw ~font draw_inputs =
     | `b -> `w
     | `w -> `b
   in
+  let label_size = 17. in
+  let graph_style =
+    let tick_length = 3 in
+    { Graph.Style.font
+    ; label_size
+    ; label_fill = solid `b
+    ; label_halo = Some (2, solid `w)
+    ; stroke = Stroke.solid `b 2
+    ; tick_length
+    ; labeled_tick_length = tick_length + 2
+    }
+  in
   let status_box_style =
     Status_box.Style.create
+      ~label_size
       ~font
       ~base_padding
       ~primary_font_size:40.
@@ -561,7 +638,7 @@ let draw ~font draw_inputs =
     context
     ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
     ~style:status_box_style
-    ~title:"bedford"
+    ~label:"bedford"
     ~display_route_text
     ~route_fill
     bedford_status;
@@ -569,7 +646,7 @@ let draw ~font draw_inputs =
     context
     ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
     ~style:status_box_style
-    ~title:"marcy"
+    ~label:"marcy"
     ~display_route_text
     ~route_fill
     marcy_status;
@@ -578,21 +655,21 @@ let draw ~font draw_inputs =
     context
     ~anchor:(Anchor.Lr (bike_status_rx, bridge_status_bottom))
     ~style:status_box_style
-    ~title:"bridge"
+    ~label:"bridge"
     ~box_size:available_bike_status_size
     bridge_status;
   Citibike_status.draw_availability
     context
     ~anchor:(Anchor.Ur (bike_status_rx, j_y + subway_stroke_safe_padding + base_padding))
     ~style:status_box_style
-    ~title:"roeb"
+    ~label:"roeb"
     ~box_size:available_bike_status_size
     roebling_status;
   Citibike_status.draw_parking
     context
     ~anchor:(Anchor.Ul (parking_grid_left, parking_grid_left_column_top))
     ~style:status_box_style
-    ~title:"ves"
+    ~label:"ves"
     ~box_size:parking_status_size
     vesey_status;
   Citibike_status.draw_parking
@@ -602,14 +679,14 @@ let draw ~font draw_inputs =
          ( parking_grid_left
          , parking_grid_left_column_top + parking_status_height + base_padding ))
     ~style:status_box_style
-    ~title:"west"
+    ~label:"west"
     ~box_size:parking_status_size
     west_status;
   Citibike_status.draw_parking
     context
     ~anchor:(Anchor.Ul (parking_grid_right_column, parking_grid_top))
     ~style:status_box_style
-    ~title:"barc"
+    ~label:"barc"
     ~box_size:parking_status_size
     barclay_status;
   Citibike_status.draw_parking
@@ -619,7 +696,7 @@ let draw ~font draw_inputs =
          ( parking_grid_right_column
          , parking_grid_top + parking_status_height + base_padding ))
     ~style:status_box_style
-    ~title:"ful"
+    ~label:"ful"
     ~box_size:parking_status_size
     fulton_status;
   draw_sun_moon
@@ -699,18 +776,21 @@ let draw ~font draw_inputs =
   in
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   let cloud_base_y = h / 3 in
-  let cloud_height = 100 in
-  let cloud_center_y = cloud_base_y - (cloud_height / 2) in
-  (match weather.conditions with
-   | Weather_info.Conditions.Not_cloudy -> ()
-   | Cloudy cloudy_conditions ->
-     draw_cloud
-       context
-       ~fill:alt_fill
-       ~center_x:cloud_center_x
-       ~base_y:cloud_base_y
-       ~height:cloud_height
-       cloudy_conditions);
+  let cloud_bounds =
+    match weather.conditions with
+    | Weather_info.Conditions.Not_cloudy -> None
+    | Cloudy precipitation ->
+      Some
+        (draw_cloud
+           context
+           ~fill:alt_fill
+           ~graph_style
+           ~padding:base_padding
+           ~center_x:cloud_center_x
+           ~base_y:cloud_base_y
+           ~graph_height:74
+           precipitation)
+  in
   let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
     let padding = radius + 2 in
     let left = screen_edge_padding + padding in
@@ -740,9 +820,13 @@ let draw ~font draw_inputs =
         in
         clears_center sun_moon_center
         &&
-        match weather.conditions with
-        | Weather_info.Conditions.Not_cloudy -> true
-        | Cloudy _ -> clears_center (cloud_center_x, cloud_center_y))
+        match cloud_bounds with
+        | None -> true
+        | Some ((left, top), (right, bottom)) ->
+          x + offset_x + padding < left
+          || x - padding > right
+          || y + Int.max 0 offset_y + padding < top
+          || y + Int.min 0 offset_y - padding > bottom)
     in
     let x = List.nth_exn positions (seed / height % List.length positions) in
     x, y
@@ -828,7 +912,7 @@ let live_draw_inputs cache ~device_status ~message ~now =
        |> Or_error.map ~f:(fun completed -> fst completed.value)
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
-     let%map.Or_error weather = Weather_info.create ~look_forward_hours:24 ~now ~forecast
+     let%map.Or_error weather = Weather_info.create ~look_forward_hours:8 ~now ~forecast
      and bridge_status =
        find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
        |> Or_error.map ~f:Citibike_status.create
@@ -951,37 +1035,67 @@ let render input cache ~message =
          return
            (Ok (preset_draw_inputs ~font ~message:(Some max_width_message) ~now ~weather))
        | Day_stormy ->
-         let now =
+         let hour_start =
            Time_ns.occurrence
              `First_after_or_at
              now
              ~ofday:(Time_ns.Ofday.create ~hr:15 ())
              ~zone:display_zone
          in
-         let weather =
-           { Weather_info.current_temperature_celsius = Some (celsius_of_fahrenheit 32.)
-           ; low_temperature_celsius = Some (celsius_of_fahrenheit 20.)
-           ; high_temperature_celsius = Some (celsius_of_fahrenheit 40.)
-           ; maximum_uv_index = None
-           ; conditions =
-               Weather_info.Conditions.Cloudy
-                 { rain = true; snow = true; thunderstorm = true }
-           ; moon_phase = None
-           ; sunrise =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:6 ())
-                 ~zone:display_zone
-           ; sunset =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:20 ())
-                 ~zone:display_zone
+         let now = Time_ns.add hour_start (Time_ns.Span.of_min 30.) in
+         let hourly =
+           List.init 10 ~f:(fun hour ->
+             let precipitation =
+               Some { Feeds.Weather.Precipitation.kind = Rain_and_snow; thunder = true }
+             in
+             let preceding_hour_precipitation_probability =
+               match hour with
+               | 3 -> None
+               | _ -> Some (100 - (Int.abs (4 - hour) * 20))
+             in
+             { Feeds.Weather.Hourly.time =
+                 Time_ns.add hour_start (Time_ns.Span.of_int_hr hour)
+             ; temperature_2m = Some (celsius_of_fahrenheit 32.)
+             ; preceding_hour_precipitation_probability
+             ; conditions = Some (Cloudy precipitation)
+             ; uv_index = None
+             })
+         in
+         let forecast =
+           { Feeds.Weather.Forecast.timezone = "America/New_York"
+           ; current =
+               { time = now
+               ; interval_seconds = 900
+               ; temperature_2m = Some (celsius_of_fahrenheit 32.)
+               ; conditions = None
+               ; uv_index = None
+               }
+           ; hourly
+           ; daily =
+               [ { date = Time_ns.to_date now ~zone:display_zone
+                 ; sunrise =
+                     Time_ns.occurrence
+                       `First_after_or_at
+                       now
+                       ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+                       ~zone:display_zone
+                     |> Option.some
+                 ; sunset =
+                     Time_ns.occurrence
+                       `First_after_or_at
+                       now
+                       ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+                       ~zone:display_zone
+                     |> Option.some
+                 ; moon_phase = Some 0.7
+                 }
+               ]
            }
          in
-         return (Ok (preset_draw_inputs ~font ~message ~now ~weather))
+         let weather = Weather_info.create ~look_forward_hours:8 ~now ~forecast in
+         return
+           (Or_error.map weather ~f:(fun weather ->
+              preset_draw_inputs ~font ~message ~now ~weather))
        | Errors_alerts ->
          let weather =
            { Weather_info.current_temperature_celsius = None

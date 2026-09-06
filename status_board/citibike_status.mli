@@ -27,7 +27,7 @@ val draw_availability
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
-  -> title:string
+  -> label:string
   -> box_size:int * int
   -> t
   -> unit
@@ -36,7 +36,7 @@ val draw_parking
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
-  -> title:string
+  -> label:string
   -> box_size:int * int
   -> t
   -> unit

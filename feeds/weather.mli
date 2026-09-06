@@ -8,13 +8,26 @@ module Coordinates : sig
     }
 end
 
+module Precipitation : sig
+  module Kind : sig
+    type t =
+      | Rain
+      | Snow
+      | Rain_and_snow
+    [@@deriving sexp]
+  end
+
+  type t =
+    { kind : Kind.t
+    ; thunder : bool
+    }
+  [@@deriving sexp]
+end
+
 module Conditions : sig
   type t =
-    { thunderstorm : bool
-    ; cloudy : bool
-    ; rain : bool
-    ; snow : bool
-    }
+    | Cloudy of Precipitation.t option
+    | Not_cloudy
   [@@deriving sexp]
 end
 
@@ -33,7 +46,7 @@ module Hourly : sig
   type t =
     { time : Time_ns.Alternate_sexp.t
     ; temperature_2m : float option
-    ; precipitation_probability : int option
+    ; preceding_hour_precipitation_probability : int option
     ; conditions : Conditions.t option
     ; uv_index : float option
     }

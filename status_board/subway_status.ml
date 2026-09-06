@@ -243,14 +243,14 @@ let draw_row
 let width = Layout.width
 let height style t = (Layout.create style ~row_count:(List.length t.rows)).height
 
-let draw context ~anchor ~style ~title ~display_route_text ~route_fill { rows; has_alert }
+let draw context ~anchor ~style ~label ~display_route_text ~route_fill { rows; has_alert }
   =
   let font = Status_box.Style.font style in
   let layout = Layout.create style ~row_count:(List.length rows) in
   let upper_left, lower_right =
     Drawing.Anchor.resolve anchor ~size:(layout.width, layout.height)
   in
-  Status_box.draw context upper_left lower_right ~style ~title ~f:(fun context ~fill:_ ->
+  Status_box.draw context upper_left lower_right ~style ~label ~f:(fun context ~fill:_ ->
     draw_directions context ~layout;
     List.iteri rows ~f:(fun row_index row ->
       draw_row

@@ -58,14 +58,14 @@ let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
     text
 ;;
 
-let draw_box context ~anchor ~style ~title ~box_size t ~is_enabled ~f =
+let draw_box context ~anchor ~style ~label ~box_size t ~is_enabled ~f =
   let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size in
   Status_box.draw
     context
     upper_left
     lower_right
     ~style
-    ~title
+    ~label
     ~fill:
       (match is_enabled with
        | true ->
@@ -74,13 +74,13 @@ let draw_box context ~anchor ~style ~title ~box_size t ~is_enabled ~f =
     ~f
 ;;
 
-let draw_availability context ~anchor ~style ~title ~box_size t =
+let draw_availability context ~anchor ~style ~label ~box_size t =
   let font = Status_box.Style.font style in
   draw_box
     context
     ~anchor
     ~style
-    ~title
+    ~label
     ~box_size
     t
     ~is_enabled:
@@ -142,13 +142,13 @@ let draw_availability context ~anchor ~style ~title ~box_size t =
           "e")
 ;;
 
-let draw_parking context ~anchor ~style ~title ~box_size t =
+let draw_parking context ~anchor ~style ~label ~box_size t =
   let font = Status_box.Style.font style in
   draw_box
     context
     ~anchor
     ~style
-    ~title
+    ~label
     ~box_size
     t
     ~is_enabled:

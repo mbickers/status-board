@@ -9,28 +9,40 @@ module Coordinates = struct
     }
 end
 
+module Precipitation = struct
+  module Kind = struct
+    type t =
+      | Rain
+      | Snow
+      | Rain_and_snow
+    [@@deriving sexp]
+  end
+
+  type t =
+    { kind : Kind.t
+    ; thunder : bool
+    }
+  [@@deriving sexp]
+end
+
 module Conditions = struct
   type t =
-    { thunderstorm : bool
-    ; cloudy : bool
-    ; rain : bool
-    ; snow : bool
-    }
+    | Cloudy of Precipitation.t option
+    | Not_cloudy
   [@@deriving sexp]
 end
 
 (* Open-Meteo documents the WMO weather codes at
    https://open-meteo.com/en/docs#weathervariables. *)
-let classify_weather_code weather_code =
-  { Conditions.thunderstorm = List.mem [ 95; 96; 99 ] weather_code ~equal:Int.equal
-  ; cloudy = weather_code = 2 || weather_code = 3
-  ; rain =
-      List.mem
-        [ 51; 53; 55; 56; 57; 61; 63; 65; 66; 67; 80; 81; 82 ]
-        weather_code
-        ~equal:Int.equal
-  ; snow = List.mem [ 71; 73; 75; 77; 85; 86 ] weather_code ~equal:Int.equal
-  }
+let classify_weather_code = function
+  | 2 | 3 -> Conditions.Cloudy None
+  | 51 | 53 | 55 | 56 | 57 | 61 | 63 | 65 | 66 | 67 | 80 | 81 | 82 ->
+    Cloudy (Some { kind = Rain; thunder = false })
+  | 71 | 73 | 75 | 77 | 85 | 86 -> Cloudy (Some { kind = Snow; thunder = false })
+  (* Code 95 does not distinguish rain from snow. *)
+  | 95 -> Cloudy (Some { kind = Rain_and_snow; thunder = true })
+  | 96 | 99 -> Cloudy (Some { kind = Snow; thunder = true })
+  | _ -> Not_cloudy
 ;;
 
 module Forecast_current = struct
@@ -48,7 +60,7 @@ module Hourly = struct
   type t =
     { time : Time_ns.Alternate_sexp.t
     ; temperature_2m : float option
-    ; precipitation_probability : int option
+    ; preceding_hour_precipitation_probability : int option
     ; conditions : Conditions.t option
     ; uv_index : float option
     }
@@ -204,7 +216,12 @@ let parse_forecast (forecast : Raw.Forecast.t) =
         forecast.hourly.temperature_2m
         precipitation_conditions_and_uv
         ~f:(fun time temperature_2m (precipitation_probability, conditions, uv_index) ->
-          { Hourly.time; temperature_2m; precipitation_probability; conditions; uv_index }))
+          { Hourly.time
+          ; temperature_2m
+          ; preceding_hour_precipitation_probability = precipitation_probability
+          ; conditions
+          ; uv_index
+          }))
   in
   let%map.Or_error daily =
     Or_error.try_with (fun () ->

@@ -5,11 +5,12 @@ module Style = struct
     { font : Font.t
     ; base_padding : int
     ; primary_font_size : float
+    ; label_size : float
     ; error_fill : Drawing.Fill.t
     }
 
-  let create ~font ~base_padding ~primary_font_size ~error_fill =
-    { font; base_padding; primary_font_size; error_fill }
+  let create ~font ~base_padding ~primary_font_size ~label_size ~error_fill =
+    { font; base_padding; primary_font_size; label_size; error_fill }
   ;;
 
   let font t = t.font
@@ -17,6 +18,7 @@ module Style = struct
   let horizontal_padding_between_text t = t.base_padding + 4
   let baseline_padding t = t.base_padding + 4
   let primary_font_size t = t.primary_font_size
+  let label_size t = t.label_size
   let error_fill t = t.error_fill
 end
 
@@ -26,7 +28,7 @@ let draw
       (left, top)
       (right, bottom)
       ~style
-      ~title
+      ~label
       ~f
   =
   let radius = 10
@@ -70,15 +72,13 @@ let draw
     | true -> ()
     | false -> Drawing.Context.write context point (stroke_fill point));
   let font = Style.font style
-  and title_font_size = 17. in
-  let rendered_title = Font.render_text font title ~size:title_font_size in
-  Drawing.text
+  and label_size = Style.label_size style in
+  let rendered_label = Font.render_text font label ~size:label_size in
+  Drawing.blit_rendered_text
     ~halo:(3, Drawing.Fill.solid `w)
     context
-    ~font
     ~fill:(Drawing.Fill.solid `b)
-    ~origin_x:(left + radius + 2 + rendered_title.origin_x)
-    ~baseline_y:(top - 2 + rendered_title.baseline_y)
-    ~size:title_font_size
-    title
+    ~origin_x:(left + radius + 2 + rendered_label.origin_x)
+    ~baseline_y:(top - 2 + rendered_label.baseline_y)
+    rendered_label
 ;;

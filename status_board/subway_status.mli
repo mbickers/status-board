@@ -36,7 +36,7 @@ val draw
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
-  -> title:string
+  -> label:string
   -> display_route_text:('display_route -> string)
   -> route_fill:('display_route -> Drawing.Fill.t)
   -> 'display_route t

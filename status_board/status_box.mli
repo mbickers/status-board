@@ -7,6 +7,7 @@ module Style : sig
     :  font:Font.t
     -> base_padding:int
     -> primary_font_size:float
+    -> label_size:float
     -> error_fill:Drawing.Fill.t
     -> t
 
@@ -15,6 +16,7 @@ module Style : sig
   val horizontal_padding_between_text : t -> int
   val baseline_padding : t -> int
   val primary_font_size : t -> float
+  val label_size : t -> float
   val error_fill : t -> Drawing.Fill.t
 end
 
@@ -24,6 +26,6 @@ val draw
   -> int * int
   -> int * int
   -> style:Style.t
-  -> title:string
+  -> label:string
   -> f:(Drawing.Context.t -> fill:Drawing.Fill.t -> unit)
   -> unit

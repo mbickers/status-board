@@ -88,7 +88,46 @@ val text
   -> string
   -> unit
 
+module Graph : sig
+  module Tick : sig
+    type t =
+      { position_frac : float
+      ; label : string option
+      }
+  end
+
+  module Point : sig
+    type t =
+      { x_frac : float
+      ; y_frac : float option
+      }
+  end
+
+  module Style : sig
+    type t =
+      { font : Font.t
+      ; label_size : float
+      ; label_fill : Fill.t
+      ; label_halo : (int * Fill.t) option
+      ; stroke : Stroke.t
+      ; tick_length : int
+      ; labeled_tick_length : int
+      }
+  end
+
+  val draw
+    :  Context.t
+    -> bottom_center:int * int
+    -> size:int * int
+    -> style:Style.t
+    -> x_ticks:Tick.t list
+    -> y_ticks:Tick.t list
+    -> points:Point.t list
+    -> unit
+end
+
 module O : sig
+  module Graph = Graph
   module Context = Context
   module Anchor = Anchor
   module Fill = Fill

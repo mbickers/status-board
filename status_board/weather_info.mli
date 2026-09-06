@@ -1,17 +1,23 @@
 open! Core
 
-module Cloudy_conditions : sig
+module Precipitation : sig
+  module Sample : sig
+    type t =
+      { time : Time_ns.t
+      ; probability_frac : float option
+      }
+  end
+
   type t =
-    { rain : bool
-    ; snow : bool
-    ; thunderstorm : bool
+    { precipitation : Feeds.Weather.Precipitation.t
+    ; samples : Sample.t list
     }
 end
 
 module Conditions : sig
   type t =
     | Not_cloudy
-    | Cloudy of Cloudy_conditions.t
+    | Cloudy of Precipitation.t option
 end
 
 type t =
