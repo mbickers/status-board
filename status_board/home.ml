@@ -423,8 +423,8 @@ let draw ~font draw_inputs =
        | true -> Ok None
        | false -> render_message message |> Or_error.map ~f:Option.some)
   in
-  let image = Image.create_grey ~max_val:1 w h in
-  let context = Context.create image in
+  let bitmap = Bitmap.create ~width:w ~height:h in
+  let context = Context.create bitmap in
   let black = Fill.solid `b in
   let alt_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:0.79 in
   let moon_dark_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
@@ -884,7 +884,7 @@ let draw ~font draw_inputs =
      in
      draw_bird context ~wing_width ~center:(x, y);
      draw_bird context ~wing_width ~center:(x + spacing, y - 4));
-  Ok image
+  Ok bitmap
 ;;
 
 module Preset = struct

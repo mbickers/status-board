@@ -15,5 +15,5 @@ type t =
   { refresh_interval : Time_ns.Span.t
   ; debug_presets : string list
   ; render :
-      Input.t -> Feeds.Cache.t -> message:string option -> Image.image Deferred.Or_error.t
+      Input.t -> Feeds.Cache.t -> message:string option -> Bitmap.t Deferred.Or_error.t
   }

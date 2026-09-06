@@ -4,10 +4,11 @@ open! Async
 let render ~cache_path ~preset ~filename =
   let cache = Feeds.Cache.create ~path:cache_path in
   let%bind.Deferred.Or_error message = Message.latest ~filename:"messages.sexp" in
-  let%bind.Deferred.Or_error image =
+  let%bind.Deferred.Or_error bitmap =
     Home.status_board.render (Preview preset) cache ~message
   in
-  Deferred.Or_error.try_with (fun () -> Writer.save filename ~contents:(Bmp.encode image))
+  Deferred.Or_error.try_with (fun () ->
+    Writer.save filename ~contents:(Bitmap.encode_bmp bitmap))
 ;;
 
 let run ~cache_path ~port ~autoreload =

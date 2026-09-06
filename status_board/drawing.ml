@@ -2,14 +2,12 @@ open! Core
 
 module Context = struct
   type t =
-    { image : Image.image
+    { bitmap : Bitmap.t
     ; offset : int * int
     ; size : int * int
     }
 
-  let create image =
-    { image; offset = 0, 0; size = image.Image.width, image.Image.height }
-  ;;
+  let create bitmap = { bitmap; offset = 0, 0; size = Bitmap.size bitmap }
 
   let crop t ~size ~offset =
     let x, y = t.offset
@@ -24,18 +22,12 @@ module Context = struct
     match x >= 0 && y >= 0 && x < width && y < height with
     | true ->
       let offset_x, offset_y = t.offset
-      and image = t.image in
+      and bitmap = t.bitmap in
       let x = x + offset_x
       and y = y + offset_y in
-      (match x >= 0 && y >= 0 && x < image.width && y < image.height with
-       | true ->
-         Image.write_grey
-           image
-           x
-           y
-           (match color with
-            | `b -> 0
-            | `w -> 1)
+      let bitmap_width, bitmap_height = Bitmap.size bitmap in
+      (match x >= 0 && y >= 0 && x < bitmap_width && y < bitmap_height with
+       | true -> Bitmap.write_exn bitmap ~x ~y color
        | false -> ())
     | false -> ()
   ;;
