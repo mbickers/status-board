@@ -3,7 +3,7 @@ open! Async
 
 let max_width_message = String.make 14 'W'
 let status_text_size = 31.
-let font = lazy (Graphics.Font.create ~ttf_file:"server/fonts/inter_medium.ttf")
+let font = lazy (Graphics.Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
 
 let render_message message =
   let%bind.Or_error font = Lazy.force font in
