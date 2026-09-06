@@ -107,12 +107,12 @@ test "$PWD" = "$HOME/status-board" || {
 opam exec -- dune build --profile release server/bin/main.exe
 install -D -m 755 _build/default/server/bin/main.exe "$HOME/.local/bin/status-board.new"
 mv "$HOME/.local/bin/status-board.new" "$HOME/.local/bin/status-board"
-install -D -m 644 status-board.service "$HOME/.config/systemd/user/status-board.service"
+install -D -m 644 status_board.service "$HOME/.config/systemd/user/status_board.service"
 install -d "$HOME/.local/state/status-board/cache"
 systemctl --user daemon-reload
-systemctl --user enable status-board.service
-systemctl --user restart status-board.service
-systemctl --user is-active --quiet status-board.service
+systemctl --user enable status_board.service
+systemctl --user restart status_board.service
+systemctl --user is-active --quiet status_board.service
 '''
 
 [tasks."build:watch"]
@@ -131,7 +131,7 @@ run = "opam exec -- dune build --watch server/bin/main.exe @runtest"
 depends = ["deps", "schemas"]
 # Keep the watch process's Dune lock separate so normal builds can run concurrently.
 run = '''
-opam exec -- dune exec --watch --build-dir=_build_dev server/bin/main.exe -- \
+opam exec -- dune exec --watch --build-dir=_build_dev server/bin/main.exe -- start \
   -cache-path _cache \
   -port 8080
 '''

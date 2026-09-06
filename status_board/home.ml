@@ -277,7 +277,6 @@ let draw ~font draw_inputs =
       ~primary_font_size:40.
       ~error_fill:(Fill.bayer_exn ~white_frac:0.7)
   in
-  (* Short geometry variable names keep the function legible. *)
   let w = 800
   and h = 480 in
   let voltage_text =

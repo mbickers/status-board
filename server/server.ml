@@ -1,6 +1,15 @@
 open! Core
 open! Async
 
+let render ~cache_path ~preset ~filename =
+  let cache = Feeds.Cache.create ~path:cache_path in
+  let%bind.Deferred.Or_error message = Message.latest ~filename:"messages.sexp" in
+  let%bind.Deferred.Or_error image =
+    Home.status_board.render (Preview preset) cache ~message
+  in
+  Deferred.Or_error.try_with (fun () -> Writer.save filename ~contents:(Bmp.encode image))
+;;
+
 let run ~cache_path ~port =
   (* I want to replace repeated hardcoded route with a handler DSL. *)
   let autoreload = Autoreload_on_restart.create ~monitor_path:[ "wait-for-restart" ] in

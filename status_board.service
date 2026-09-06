@@ -5,7 +5,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=%h/status-board
-ExecStart=%h/.local/bin/status-board -cache-path %h/.local/state/status-board/cache -port 8000
+ExecStart=%h/.local/bin/status-board start -cache-path %h/.local/state/status-board/cache -port 8000
 Restart=always
 RestartSec=1
 
