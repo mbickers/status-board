@@ -389,7 +389,7 @@ let rec stroke_closed_path context ~stroke points =
     draw points
 ;;
 
-let rounded_polygon context ~radius ~fill ?stroke points =
+let rounded_polygon context ~radius ~fill ?stroke ?(round_corner = fun _ -> true) points =
   match List.map points ~f:(fun (x, y) -> Float.of_int x, Float.of_int y) with
   | [] | [ _ ] | [ _; _ ] -> ()
   | points ->
@@ -397,12 +397,15 @@ let rounded_polygon context ~radius ~fill ?stroke points =
     let point_count = Array.length points in
     let rounded_points =
       Array.mapi points ~f:(fun index vertex ->
-        let previous = points.((index + point_count - 1) % point_count)
-        and next = points.((index + 1) % point_count) in
-        let curve_start, curve_end =
-          rounded_corner_tangent_points ~radius ~previous vertex ~next
-        in
-        quadratic_curve_points (curve_start, vertex, curve_end))
+        match round_corner index with
+        | false -> [ vertex ]
+        | true ->
+          let previous = points.((index + point_count - 1) % point_count)
+          and next = points.((index + 1) % point_count) in
+          let curve_start, curve_end =
+            rounded_corner_tangent_points ~radius ~previous vertex ~next
+          in
+          quadratic_curve_points (curve_start, vertex, curve_end))
       |> Array.to_list
       |> List.concat
     in

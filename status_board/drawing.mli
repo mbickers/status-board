@@ -65,6 +65,7 @@ val rounded_polygon
   -> radius:int
   -> fill:Fill.t
   -> ?stroke:Stroke.t
+  -> ?round_corner:(int -> bool)
   -> (int * int) list
   -> unit
 
@@ -162,6 +163,7 @@ module O : sig
     -> radius:int
     -> fill:Fill.t
     -> ?stroke:Stroke.t
+    -> ?round_corner:(int -> bool)
     -> (int * int) list
     -> unit
 

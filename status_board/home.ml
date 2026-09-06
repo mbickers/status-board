@@ -163,6 +163,10 @@ let draw_cloud
       ~center_x
       ~base_y
       ~graph_height
+      ~random
+      ~diameter_frac_range:(min_diameter_frac, max_diameter_frac)
+      ~outer_angle_range:(min_outer_angle, max_outer_angle)
+      ~outer_diameter_frac
       (precipitation : Weather_info.Precipitation.t option)
   =
   let graph_width = 150 in
@@ -177,21 +181,50 @@ let draw_cloud
        | Rain_and_snow -> true, true, thunder)
   in
   let height = graph_height + (2 * padding) in
-  let width = graph_width + height + (2 * padding) in
-  let left = center_x - (width / 2) in
-  let path =
-    Path_resolver_step.resolve
-      [ Path_resolver_step.Point (left, base_y)
-      ; Offset (width, 0)
-      ; Offset (0, -height / 2)
-      ; Offset (-height / 2, 0)
-      ; Offset (0, -height / 2)
-      ; Offset (-width + height, 0)
-      ; Offset (0, height / 2)
-      ; Offset (-height / 2, 0)
-      ]
+  let rectangle_width = graph_width + (2 * padding) in
+  let rectangle_left = center_x - (rectangle_width / 2) in
+  let rectangle_right = rectangle_left + rectangle_width in
+  rounded_polygon
+    context
+    ~radius:25
+    ~fill
+    ~round_corner:(fun index -> index >= 2)
+    [ rectangle_left, base_y
+    ; rectangle_right, base_y
+    ; rectangle_right, base_y - height
+    ; rectangle_left, base_y - height
+    ];
+  let circles =
+    List.concat_map
+      [ -1., rectangle_left; 1., rectangle_right ]
+      ~f:(fun (direction, side_x) ->
+        let diameter_frac =
+          Random.State.float_range random min_diameter_frac max_diameter_frac
+        in
+        let outer_angle =
+          Random.State.float_range random min_outer_angle max_outer_angle
+        in
+        let radius = Float.of_int height *. diameter_frac /. 2. in
+        let x = Float.of_int side_x in
+        let y = Float.of_int base_y -. radius in
+        let dx = direction *. Float.cos outer_angle in
+        let dy = -.Float.sin outer_angle in
+        let outer_radius = Float.of_int height *. outer_diameter_frac /. 2. in
+        [ x, y, radius; x +. (radius *. dx), y +. (radius *. dy), outer_radius ])
+    |> List.map ~f:(fun (x, y, radius) ->
+      ( Float.iround_nearest_exn x
+      , Float.iround_nearest_exn y
+      , Float.iround_nearest_exn radius ))
   in
-  rounded_polygon context ~radius:20 ~fill path;
+  let left, right, top =
+    List.fold
+      circles
+      ~init:(rectangle_left, rectangle_right, base_y - height)
+      ~f:(fun (left, right, top) (x, y, radius) ->
+        circle context ~fill ~center:(x, y) ~radius;
+        Int.min left (x - radius), Int.max right (x + radius), Int.min top (y - radius))
+  in
+  let width = right - left in
   Option.iter precipitation ~f:(fun precipitation ->
     let samples = precipitation.samples in
     match samples, List.last samples with
@@ -305,7 +338,7 @@ let draw_cloud
            ~stroke
            ~radius:snowflake_radius
            ~center:(center_x, top + snowflake_radius)));
-  (left, base_y - height), (left + width, base_y)
+  (left, top), (right, base_y)
 ;;
 
 let draw ~font draw_inputs =
@@ -774,6 +807,7 @@ let draw ~font draw_inputs =
     | true -> w, sun_moon_center_x + sun_moon_radius
     | false -> 0, sun_moon_center_x - sun_moon_radius
   in
+  let random = Random.State.make [| Time_ns.hash now |] in
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   let cloud_base_y = h / 3 in
   let cloud_bounds =
@@ -789,17 +823,20 @@ let draw ~font draw_inputs =
            ~center_x:cloud_center_x
            ~base_y:cloud_base_y
            ~graph_height:74
+           ~random
+           ~diameter_frac_range:(0.5, 0.7)
+           ~outer_angle_range:(0., Float.pi /. 2.)
+           ~outer_diameter_frac:0.5
            precipitation)
   in
   let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
     let padding = radius + 2 in
     let left = screen_edge_padding + padding in
     let right = w - screen_edge_padding - offset_x - padding in
-    let seed = Int.hash (Time_ns.hash now + index) in
     let top = status_text_baseline + screen_edge_padding + padding - Int.min 0 offset_y in
     let bottom = map_faded_top - screen_edge_padding - padding in
     let height = (bottom - top + 1) / count in
-    let y = top + (index * height) + (seed % height) in
+    let y = top + (index * height) + Random.State.int random height in
     let positions =
       List.range left (right + 1)
       |> List.filter ~f:(fun x ->
@@ -828,7 +865,7 @@ let draw ~font draw_inputs =
           || y + Int.max 0 offset_y + padding < top
           || y + Int.min 0 offset_y - padding > bottom)
     in
-    let x = List.nth_exn positions (seed / height % List.length positions) in
+    let x = List.nth_exn positions (Random.State.int random (List.length positions)) in
     x, y
   in
   (match is_night with
