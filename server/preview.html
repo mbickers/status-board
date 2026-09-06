@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <p><a href="/">home</a></p>
   <nav class="presets" aria-label="Debug presets">
-    <a href="{{default_url}}"{{#default_selected}} aria-current="page"{{/default_selected}}>default</a>
+    <a href="{{default_url}}"{{#default_selected}} aria-current="page"{{/default_selected}}>live</a>
     {{#debug_presets}}
     <a href="{{url}}"{{#selected}} aria-current="page"{{/selected}}>{{name}}</a>
     {{/debug_presets}}

@@ -780,7 +780,7 @@ module Preset = struct
   let to_string = function
     | Dense_text_night -> "dense text + night"
     | Day_stormy -> "day + stormy"
-    | Errors_alerts -> "errors + alerts"
+    | Errors_alerts -> "errors"
   ;;
 
   let of_string name =
