@@ -40,6 +40,7 @@ let page_html ~messages ~attempted ~error =
       let written_at =
         Time_ns_unix.format message.written_at "%d %b %Y at %I:%M %p" ~zone
       in
+      (* Mustache HTML-escapes these values when rendering {{...}} tags. *)
       `O [ "text", `String message.text; "written_at", `String written_at ])
   in
   Or_error.try_with (fun () ->
