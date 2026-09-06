@@ -928,7 +928,7 @@ let render input cache ~message =
            ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
            ; maximum_uv_index = Some 10.
            ; conditions = Weather_info.Conditions.Not_cloudy
-           ; moon_phase = Some 0.25
+           ; moon_phase = Some 0.7
            ; sunrise =
                Time_ns.occurrence
                  `First_after_or_at

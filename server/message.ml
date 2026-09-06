@@ -82,7 +82,12 @@ let respond ~filename ~validate ~body request =
          |> Option.bind ~f:List.hd
          |> Option.value ~default:""
        in
-       (match validate attempted with
+       let validation =
+         match String.length attempted > 100 with
+         | true -> Or_error.error_string "Messages must be 100 characters or fewer"
+         | false -> validate attempted
+       in
+       (match validation with
         | Error error ->
           page ~status:`Bad_request ~messages ~attempted ~error:(Some error)
         | Ok () ->
