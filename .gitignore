@@ -11,3 +11,5 @@ _opam
 dune-workspace
 
 /messages.sexp
+
+AGENTS.md
