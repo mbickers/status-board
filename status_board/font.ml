@@ -61,7 +61,7 @@ let render_text t string ~size =
       glyphs
       ~init:(Int.max_value, Int.max_value, Int.min_value, Int.min_value)
       ~f:(fun (left, top, right, bottom) (x, bitmap) ->
-        ( Int.min left (x + bitmap.Stb_truetype.xoff)
+        ( Int.min left (x + bitmap.xoff)
         , Int.min top bitmap.yoff
         , Int.max right (x + bitmap.xoff + bitmap.w)
         , Int.max bottom (bitmap.yoff + bitmap.h) ))

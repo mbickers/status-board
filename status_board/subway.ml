@@ -103,7 +103,7 @@ module Status = struct
         in
         let eastbound_direction =
           match selection.westbound_mta_direction with
-          | Feeds.Mta_subway.Direction.North -> Feeds.Mta_subway.Direction.South
+          | North -> Feeds.Mta_subway.Direction.South
           | South -> North
         in
         { Row.line = selection.line

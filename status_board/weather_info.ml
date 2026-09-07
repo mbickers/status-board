@@ -63,7 +63,7 @@ let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) ~us_a
   in
   let precipitation =
     List.filter_map conditions ~f:(function
-      | Feeds.Weather.Conditions.Cloudy precipitation -> precipitation
+      | Cloudy precipitation -> precipitation
       | Not_cloudy -> None)
     |> List.reduce ~f:(fun combined precipitation ->
       let kind =
@@ -72,9 +72,7 @@ let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) ~us_a
         | Snow, Snow -> Snow
         | _ -> Rain_and_snow
       in
-      { Feeds.Weather.Precipitation.kind
-      ; thunder = combined.thunder || precipitation.thunder
-      })
+      { kind; thunder = combined.thunder || precipitation.thunder })
     |> Option.map ~f:(fun precipitation ->
       let samples =
         List.filter_map forecast.hourly ~f:(fun hourly ->
@@ -117,10 +115,10 @@ let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) ~us_a
     | None ->
       (match
          List.exists conditions ~f:(function
-           | Feeds.Weather.Conditions.Cloudy _ -> true
+           | Cloudy _ -> true
            | Not_cloudy -> false)
        with
-       | true -> Conditions.Cloudy None
+       | true -> Cloudy None
        | false -> Not_cloudy)
   in
   { current_temperature_celsius = forecast.current.temperature_2m
@@ -168,7 +166,7 @@ let%expect_test
             ; conditions =
                 Some
                   (match List.mem wet_hours hour ~equal:Int.equal with
-                   | false -> Feeds.Weather.Conditions.Not_cloudy
+                   | false -> Not_cloudy
                    | true -> Cloudy (Some { kind = Rain; thunder = false }))
             ; uv_index = None
             })
@@ -221,7 +219,7 @@ module Testing_data = struct
     ; maximum_uv_index = Some 10.
     ; us_aqi = Some 499.
     ; conditions =
-        Conditions.Cloudy
+        Cloudy
           (Some
              { precipitation = { kind = Snow; thunder = false }
              ; samples =
@@ -306,7 +304,7 @@ module Testing_data = struct
     ; high_temperature_celsius = None
     ; maximum_uv_index = None
     ; us_aqi = None
-    ; conditions = Conditions.Not_cloudy
+    ; conditions = Not_cloudy
     ; moon_phase = None
     ; sunrise =
         Time_ns.occurrence

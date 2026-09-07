@@ -649,7 +649,7 @@ module Graph = struct
            : (float * float) option);
         ignore
           (List.fold points ~init:0.5 ~f:(fun last_y_frac point ->
-             match point.Point.y_frac with
+             match point.y_frac with
              | Some y_frac -> y_frac
              | None ->
                let rendered = Lazy.force missing_label in

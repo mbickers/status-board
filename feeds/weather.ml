@@ -234,7 +234,7 @@ let parse_forecast (forecast : Raw.Forecast.t) =
   in
   { Forecast.timezone = forecast.timezone
   ; current =
-      { Forecast_current.time = current_time
+      { time = current_time
       ; interval_seconds = forecast.current.interval
       ; temperature_2m = forecast.current.temperature_2m
       ; conditions = Option.map forecast.current.weather_code ~f:classify_weather_code
@@ -251,7 +251,7 @@ let parse_air_quality (air_quality : Raw.Air_quality.t) =
   in
   let%map.Or_error time = parse_time ~zone air_quality.current.time in
   { Air_quality.current =
-      { Air_quality_current.time
+      { time
       ; interval_seconds = air_quality.current.interval
       ; us_aqi = air_quality.current.us_aqi
       }

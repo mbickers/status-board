@@ -156,7 +156,7 @@ let draw
       ~error_fill:(bayer_exn ~white_frac:0.7)
   in
   let voltage_text =
-    match device_status.Status_board.Device_status.battery_voltage with
+    match device_status.battery_voltage with
     | Some battery_voltage ->
       [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
     | None -> "voltage unknown"
@@ -252,7 +252,7 @@ let draw
   let manhattan_top = map_faded_top - manhattan_corner_radius in
   let manhattan_path =
     Path_resolver_step.resolve
-      [ Path_resolver_step.Point (manhattan_left, manhattan_top)
+      [ Point (manhattan_left, manhattan_top)
       ; Point (manhattan_left, manhattan_bottom - manhattan_inset)
       ; Offset (manhattan_inset, manhattan_inset)
       ; Point (manhattan_w - manhattan_inset, manhattan_bottom)
@@ -467,7 +467,7 @@ let draw
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   let cloud_base_y = h / 3 in
   (match weather.conditions with
-   | Weather_info.Conditions.Not_cloudy -> ()
+   | Not_cloudy -> ()
    | Cloudy precipitation ->
      Sky.draw_cloud
        context
@@ -555,25 +555,20 @@ let live_draw_inputs cache ~device_status ~message ~now =
   let bedford_rows =
     [ { Subway.Status.Selection.line = L
       ; minimum_minutes = 11
-      ; westbound_mta_direction = Feeds.Mta_subway.Direction.North
+      ; westbound_mta_direction = North
       }
     ]
   and marcy_rows =
     [ { Subway.Status.Selection.line = J_and_Z_but_call_it_J
       ; minimum_minutes = 5
-      ; westbound_mta_direction = Feeds.Mta_subway.Direction.South
+      ; westbound_mta_direction = South
       }
-    ; { line = M
-      ; minimum_minutes = 5
-      ; westbound_mta_direction = Feeds.Mta_subway.Direction.North
-      }
+    ; { line = M; minimum_minutes = 5; westbound_mta_direction = North }
     ]
   in
   let%bind citibike_result = Feeds.Citibike.query cache
   and mta_subway_status_result =
-    Feeds.Mta_subway.query
-      cache
-      ~which_feeds:[ Feeds.Mta_subway.Realtime_feed.Line_L; Lines_J_Z; Lines_B_D_F_M ]
+    Feeds.Mta_subway.query cache ~which_feeds:[ Line_L; Lines_J_Z; Lines_B_D_F_M ]
   and weather_result = query_weather cache in
   return
     (let%bind.Or_error citibike_stations =
@@ -663,15 +658,11 @@ let render input cache ~message =
     | Status_board.Input.Device device_status ->
       live_draw_inputs cache ~device_status ~message ~now
     | Preview None ->
-      live_draw_inputs
-        cache
-        ~message
-        ~device_status:{ Status_board.Device_status.battery_voltage = Some 4.1 }
-        ~now
+      live_draw_inputs cache ~message ~device_status:{ battery_voltage = Some 4.1 } ~now
     | Preview (Some preset) ->
       let%bind.Deferred.Or_error preset = return (Preset.of_string preset) in
       (match preset with
-       | Preset.Dense_text_night ->
+       | Dense_text_night ->
          let now =
            Time_ns.occurrence
              `First_after_or_at

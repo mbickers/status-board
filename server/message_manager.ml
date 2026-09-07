@@ -16,7 +16,7 @@ let read t =
     Monitor.try_with ~extract_exn:true (fun () -> Reader.file_contents t.filename)
   in
   match contents with
-  | Error (Unix.Unix_error (Unix.Error.ENOENT, _, _)) -> return (Ok [])
+  | Error (Unix.Unix_error (ENOENT, _, _)) -> return (Ok [])
   | Error exn -> return (Error (Error.of_exn exn))
   | Ok contents ->
     return

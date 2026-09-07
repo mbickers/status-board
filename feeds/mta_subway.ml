@@ -31,10 +31,10 @@ module Stop_id = struct
 
   let of_string stop_id =
     match String.chop_suffix stop_id ~suffix:"N" with
-    | Some station_id -> Ok { station_id; direction = Direction.North }
+    | Some station_id -> Ok { station_id; direction = North }
     | None ->
       (match String.chop_suffix stop_id ~suffix:"S" with
-       | Some station_id -> Ok { station_id; direction = Direction.South }
+       | Some station_id -> Ok { station_id; direction = South }
        | None -> Or_error.errorf "Stop ID has no direction: %s" stop_id)
   ;;
 end
@@ -135,7 +135,7 @@ let upcoming_arrivals (feed_message : Gtfs.FeedMessage.t) =
     |> Map.map ~f:(fun arrivals ->
       arrivals
       |> List.sort ~compare:(fun left right ->
-        Time_ns.compare left.Arrival.arrives_at right.arrives_at)))
+        Time_ns.compare left.arrives_at right.arrives_at)))
 ;;
 
 let translated_text (translated_string : Gtfs.TranslatedString.t) =
@@ -187,11 +187,11 @@ let fetch_message (type result) (feed : result Feed.t) =
   let base_url = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds" in
   let url =
     match feed with
-    | Feed.Realtime realtime_feed ->
+    | Realtime realtime_feed ->
       base_url
       ^
         (match realtime_feed with
-        | Realtime_feed.Lines_1_2_3_4_5_6_7 -> "/nyct%2Fgtfs"
+        | Lines_1_2_3_4_5_6_7 -> "/nyct%2Fgtfs"
         | Lines_A_C_E -> "/nyct%2Fgtfs-ace"
         | Lines_B_D_F_M -> "/nyct%2Fgtfs-bdfm"
         | Line_G -> "/nyct%2Fgtfs-g"
@@ -203,7 +203,7 @@ let fetch_message (type result) (feed : result Feed.t) =
   in
   let decode : Gtfs.FeedMessage.t -> result Or_error.t =
     match feed with
-    | Feed.Realtime _ -> upcoming_arrivals
+    | Realtime _ -> upcoming_arrivals
     | All_alerts ->
       fun feed_message ->
         List.filter_map feed_message.entity ~f:alert |> Or_error.combine_errors
@@ -252,10 +252,10 @@ let query cache ~which_feeds =
         cache
         ((Lazy.force realtime_cache_keys) realtime_feed)
         ~max_age
-        ~fetch:(fun () -> fetch_message (Feed.Realtime realtime_feed)))
+        ~fetch:(fun () -> fetch_message (Realtime realtime_feed)))
   and all_alerts_result =
     Cache.get cache (Lazy.force alerts_cache_key) ~max_age ~fetch:(fun () ->
-      fetch_message Feed.All_alerts)
+      fetch_message All_alerts)
   in
   return
     (let%bind.Or_error completed_arrivals =
@@ -276,7 +276,7 @@ let query cache ~which_feeds =
          arrivals
          |> List.concat
          |> List.sort ~compare:(fun left right ->
-           Time_ns.compare left.Arrival.arrives_at right.arrives_at))
+           Time_ns.compare left.arrives_at right.arrives_at))
      in
      let now = Time_ns.now () in
      let all_alerts =

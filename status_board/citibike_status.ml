@@ -32,7 +32,7 @@ let create (station : Feeds.Citibike.Station.t) =
   in
   { availability =
       (match station.is_renting with
-       | false -> Availability.Not_renting
+       | false -> Not_renting
        | true ->
          Renting
            { classic_bikes_available = station.bikes_available - station.ebikes_available
@@ -40,7 +40,7 @@ let create (station : Feeds.Citibike.Station.t) =
            })
   ; parking =
       (match station.is_returning with
-       | false -> Parking.Not_accepting_returns
+       | false -> Not_accepting_returns
        | true -> Accepting_returns { docks_available = station.docks_available })
   ; bikes_available_frac
   }
@@ -157,18 +157,18 @@ let parking ~style ~label t =
 module Testing_data = struct
   let dense_text ~widest_two_digit_number =
     { availability =
-        Availability.Renting
+        Renting
           { classic_bikes_available = widest_two_digit_number
           ; electric_bikes_available = widest_two_digit_number
           }
-    ; parking = Parking.Accepting_returns { docks_available = widest_two_digit_number }
+    ; parking = Accepting_returns { docks_available = widest_two_digit_number }
     ; bikes_available_frac = 2. /. 3.
     }
   ;;
 
   let errors =
-    { availability = Availability.Not_renting
-    ; parking = Parking.Not_accepting_returns
+    { availability = Not_renting
+    ; parking = Not_accepting_returns
     ; bikes_available_frac = 0.
     }
   ;;

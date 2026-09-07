@@ -19,7 +19,7 @@ let image_path t input =
     | Status_board.Input.Device device_status ->
       ("input", [ "device" ])
       :: Option.value_map
-           device_status.Status_board.Device_status.battery_voltage
+           device_status.battery_voltage
            ~default:[]
            ~f:(fun battery_voltage ->
              [ "battery_voltage", [ Float.to_string battery_voltage ] ])

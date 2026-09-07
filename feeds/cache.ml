@@ -28,7 +28,7 @@ let read t (type value) (key : value Key.t) =
     Monitor.try_with ~extract_exn:true (fun () -> Reader.file_contents path)
   in
   match contents with
-  | Error (Unix.Unix_error (Unix.Error.ENOENT, _, _)) -> return None
+  | Error (Unix.Unix_error (ENOENT, _, _)) -> return None
   | Error exn ->
     let error = Error.of_exn exn in
     [%log.global.error "Failed to read cache file" (path : string) (error : Error.t)];
