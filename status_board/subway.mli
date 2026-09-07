@@ -41,14 +41,5 @@ module Status : sig
     -> rows:Selection.t list
     -> t Or_error.t
 
-  val width : Status_box.Style.t -> int
-  val height : Status_box.Style.t -> t -> int
-
-  val draw
-    :  Drawing.Context.t
-    -> anchor:Drawing.Anchor.t
-    -> style:Status_box.Style.t
-    -> label:string
-    -> t
-    -> unit
+  val element : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
 end

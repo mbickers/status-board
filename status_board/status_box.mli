@@ -20,12 +20,10 @@ module Style : sig
   val error_fill : t -> Drawing.Fill.t
 end
 
-val draw
-  :  ?fill:(Drawing.Context.t -> Drawing.Fill.t)
-  -> Drawing.Context.t
-  -> int * int
-  -> int * int
+val create
+  :  ?fill:Drawing.Fill.t
   -> style:Style.t
   -> label:string
-  -> f:(Drawing.Context.t -> fill:Drawing.Fill.t -> unit)
+  -> content:Drawing.Element.t
   -> unit
+  -> Drawing.Element.t

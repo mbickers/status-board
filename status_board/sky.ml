@@ -1,15 +1,5 @@
 open! Core
 
-let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
-  let rendered_text = Font.render_text font text ~size in
-  Drawing.Text.blit_rendered_text
-    context
-    ~fill
-    ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
-    ~baseline_y
-    rendered_text
-;;
-
 let fahrenheit_text = function
   | None -> "??"
   | Some celsius ->
@@ -81,63 +71,24 @@ let draw_sun_moon
     |> String.concat ~sep:"  "
   and temperature_size = 70.
   and text_spacing = 4 in
-  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
-  and rendered_low_high = Font.render_text font low_high_text ~size:status_text_size
-  and rendered_uv =
+  let uv_label =
     Option.bind weather.maximum_uv_index ~f:(fun uv ->
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
         let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (text, Font.render_text font text ~size:status_text_size))
+        Some (Text.create ~font ~fill:text_fill ~size:status_text_size text))
   in
-  let uv_height =
-    Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
-      text_spacing + rendered_uv.height)
+  let labels =
+    [ Text.create ~font ~fill:text_fill ~size:temperature_size temperature_text
+    ; Text.create ~font ~fill:text_fill ~size:status_text_size low_high_text
+    ]
+    @ Option.to_list uv_label
   in
-  let text_top =
-    center_y
-    - ((rendered_temperature.height + text_spacing + rendered_low_high.height + uv_height)
-       / 2)
-  in
-  draw_centered_text
+  Element.draw
+    (Element.column ~gap:text_spacing ~align:Center labels)
     context
-    ~font
-    ~fill:text_fill
-    ~size:temperature_size
-    ~baseline_y:(text_top + rendered_temperature.baseline_y)
-    ~left:(center_x - radius)
-    ~right:(center_x + radius)
-    temperature_text;
-  draw_centered_text
-    context
-    ~font
-    ~fill:text_fill
-    ~size:status_text_size
-    ~baseline_y:
-      (text_top
-       + rendered_temperature.height
-       + text_spacing
-       + rendered_low_high.baseline_y)
-    ~left:(center_x - radius)
-    ~right:(center_x + radius)
-    low_high_text;
-  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
-    draw_centered_text
-      context
-      ~font
-      ~fill:text_fill
-      ~size:status_text_size
-      ~baseline_y:
-        (text_top
-         + rendered_temperature.height
-         + text_spacing
-         + rendered_low_high.height
-         + text_spacing
-         + rendered_uv.baseline_y)
-      ~left:(center_x - radius)
-      ~right:(center_x + radius)
-      uv_text)
+    ((Center, center_x), (Center, center_y))
 ;;
 
 let draw_cloud

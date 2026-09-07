@@ -95,37 +95,6 @@ module Status = struct
     { rows; has_alert = not (List.is_empty stop_status.alerts) }
   ;;
 
-  let draw_bullet
-        context
-        ~font
-        ~font_size
-        ~fill
-        ~text_fill
-        ~label
-        ~radius
-        ~center:(center_x, center_y)
-    =
-    for y = center_y - radius to center_y + radius do
-      for x = center_x - radius to center_x + radius do
-        match
-          ((x - center_x) * (x - center_x)) + ((y - center_y) * (y - center_y))
-          <= radius * radius
-        with
-        | true -> Drawing.Context.write context (x, y) (fill (x, y))
-        | false -> ()
-      done
-    done;
-    let rendered_text = Font.render_text font label ~size:font_size in
-    Drawing.Text.text
-      context
-      ~font
-      ~fill:text_fill
-      ~origin_x:(center_x - (rendered_text.width / 2) + rendered_text.origin_x)
-      ~baseline_y:(center_y - (rendered_text.height / 2) + rendered_text.baseline_y)
-      ~size:font_size
-      label
-  ;;
-
   module Layout = struct
     type t =
       { width : int
@@ -235,86 +204,88 @@ module Status = struct
     draw_arrow `Right ~center_x:((eastbound_left + right) / 2)
   ;;
 
-  let draw_row context ~(layout : Layout.t) ~font ~center_y (row : Row.t) =
-    let departure_text minutes =
-      match List.map minutes ~f:Int.to_string with
-      | [] -> "-"
-      | minutes -> String.concat minutes ~sep:","
-    in
-    let fill = Line.fill row.line in
-    let bullet_text_fill = Drawing.Fill.solid `w
-    and text_left, westbound_right, eastbound_left, text_right = columns layout in
-    let draw_centered_text text ~left ~right =
-      let rendered_text = Font.render_text font text ~size:layout.departure_font_size in
-      Drawing.Text.text
-        context
-        ~font
-        ~fill:(Drawing.Fill.solid `b)
-        ~origin_x:
-          (left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
-        ~baseline_y:(center_y - (rendered_text.height / 2) + rendered_text.baseline_y)
-        ~size:layout.departure_font_size
-        text
-    in
-    draw_bullet
-      context
-      ~font
-      ~font_size:layout.bullet_font_size
-      ~fill
-      ~text_fill:bullet_text_fill
-      ~label:(Line.to_string row.line)
-      ~radius:layout.bullet_radius
-      ~center:(layout.padding + layout.bullet_radius, center_y - 6);
-    draw_centered_text
-      (departure_text row.westbound_minutes)
-      ~left:text_left
-      ~right:westbound_right;
-    draw_centered_text
-      (departure_text row.eastbound_minutes)
-      ~left:eastbound_left
-      ~right:text_right
-  ;;
-
-  let width = Layout.width
-  let height style t = (Layout.create style ~row_count:(List.length t.rows)).height
-
-  let draw context ~anchor ~style ~label { rows; has_alert } =
+  let element ~style ~label { rows; has_alert } =
     let font = Status_box.Style.font style in
     let layout = Layout.create style ~row_count:(List.length rows) in
-    let upper_left, lower_right =
-      Drawing.Anchor.resolve anchor ~size:(layout.width, layout.height)
-    in
-    Status_box.draw
-      context
-      upper_left
-      lower_right
-      ~style
-      ~label
-      ~f:(fun context ~fill:_ ->
-        draw_directions context ~layout;
-        List.iteri rows ~f:(fun row_index row ->
-          draw_row
-            context
-            ~layout
+    let rows =
+      List.map rows ~f:(fun (row : Row.t) ->
+        let departure_text minutes =
+          match List.map minutes ~f:Int.to_string with
+          | [] -> "-"
+          | minutes -> String.concat minutes ~sep:","
+        in
+        let bullet =
+          Drawing.Text.create
             ~font
-            ~center_y:(layout.first_row_center_y + (row_index * layout.row_height))
-            row));
-    match has_alert with
-    | false -> ()
-    | true ->
-      let _, top = upper_left
-      and right, _ = lower_right in
-      let size = 30. in
-      let alert_text = "!!" in
-      let rendered = Font.render_text font alert_text ~size in
-      Drawing.Text.text
-        ~halo:(3, Drawing.Fill.solid `w)
-        context
-        ~font
-        ~fill:(Drawing.Fill.solid `b)
-        ~origin_x:(right - rendered.width - 8 + rendered.origin_x)
-        ~baseline_y:(top - (rendered.height / 2) + rendered.baseline_y + 3)
+            ~size:layout.bullet_font_size
+            ~fill:(Drawing.Fill.solid `w)
+            (Line.to_string row.line)
+        and west =
+          Drawing.Text.create
+            ~font
+            ~size:layout.departure_font_size
+            ~fill:(Drawing.Fill.solid `b)
+            (departure_text row.westbound_minutes)
+        and east =
+          Drawing.Text.create
+            ~font
+            ~size:layout.departure_font_size
+            ~fill:(Drawing.Fill.solid `b)
+            (departure_text row.eastbound_minutes)
+        in
+        fun context ~center_y ->
+          let text_left, westbound_right, eastbound_left, text_right = columns layout in
+          let center_x = layout.padding + layout.bullet_radius in
+          Drawing.Shapes.circle
+            context
+            ~fill:(Line.fill row.line)
+            ~center:(center_x, center_y - 6)
+            ~radius:layout.bullet_radius;
+          Drawing.Element.draw bullet context ((Center, center_x), (Center, center_y - 6));
+          Drawing.Element.draw
+            west
+            context
+            ((Center, (text_left + westbound_right) / 2), (Center, center_y));
+          Drawing.Element.draw
+            east
+            context
+            ((Center, (eastbound_left + text_right) / 2), (Center, center_y)))
+    in
+    let size = layout.width, layout.height in
+    let content =
+      Drawing.Element.create
         ~size
-        alert_text
+        ~draw:(fun context ~upper_left:(x, y) ->
+          let context = Drawing.Context.crop context ~offset:(x, y) ~size in
+          draw_directions context ~layout;
+          List.iteri rows ~f:(fun index draw ->
+            draw
+              context
+              ~center_y:(layout.first_row_center_y + (index * layout.row_height))))
+        ()
+    in
+    let box = Status_box.create ~style ~label ~content () in
+    let alert =
+      match has_alert with
+      | false -> None
+      | true ->
+        Some
+          (Drawing.Text.create
+             ~halo:(3, Drawing.Fill.solid `w)
+             ~font
+             ~size:30.
+             ~fill:(Drawing.Fill.solid `b)
+             "!!")
+    in
+    Drawing.Element.create
+      ~size
+      ~draw:(fun context ~upper_left:(left, top) ->
+        Drawing.Element.draw box context ((Left, left), (Top, top));
+        Option.iter alert ~f:(fun alert ->
+          Drawing.Element.draw
+            alert
+            context
+            ((Right, left + layout.width - 8), (Center, top + 3))))
+      ()
   ;;
 end

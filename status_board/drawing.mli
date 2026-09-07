@@ -9,14 +9,39 @@ module Context : sig
   val write : t -> int * int -> [ `b | `w ] -> unit
 end
 
-module Anchor : sig
-  type t =
-    | Ul of int * int
-    | Ur of int * int
-    | Ll of int * int
-    | Lr of int * int
+module Element : sig
+  module Horizontal_alignment : sig
+    type t =
+      | Left
+      | Center
+      | Right
+  end
 
-  val resolve : t -> size:int * int -> (int * int) * (int * int)
+  module Vertical_alignment : sig
+    type t =
+      | Top
+      | Center
+      | Bottom
+      | Baseline
+  end
+
+  module Anchor : sig
+    type t = (Horizontal_alignment.t * int) * (Vertical_alignment.t * int)
+  end
+
+  type t
+
+  (* Baseline is measured from the top and defaults to the element's height. *)
+  val create
+    :  ?baseline:int
+    -> size:int * int
+    -> draw:(Context.t -> upper_left:int * int -> unit)
+    -> unit
+    -> t
+
+  val size : t -> int * int
+  val draw : t -> Context.t -> Anchor.t -> unit
+  val column : gap:int -> align:Horizontal_alignment.t -> t list -> t
 end
 
 module Fill : sig
@@ -26,7 +51,7 @@ module Fill : sig
   val invert : t -> t
   val bayer_exn : ?size:int -> ?offset:int * int -> white_frac:float -> t
   val fade_to : t -> color:[ `b | `w ] -> color_frac:(int * int -> float) -> t
-  val fractional : frac:float -> frontier_angle_degrees:float -> Context.t -> t
+  val fractional : frac:float -> frontier_angle_degrees:float -> size:int * int -> t
 end
 
 module Stroke : sig
@@ -76,25 +101,13 @@ module Shapes : sig
 end
 
 module Text : sig
-  val blit_rendered_text
+  val create
     :  ?halo:int * Fill.t
-    -> Context.t
-    -> fill:Fill.t
-    -> origin_x:int
-    -> baseline_y:int
-    -> Font.Rendered_text.t
-    -> unit
-
-  val text
-    :  ?halo:int * Fill.t
-    -> Context.t
     -> font:Font.t
     -> fill:Fill.t
-    -> origin_x:int
-    -> baseline_y:int
     -> size:float
     -> string
-    -> unit
+    -> Element.t
 end
 
 module Graph : sig
@@ -138,10 +151,10 @@ end
 module O : sig
   module Graph = Graph
   module Context = Context
-  module Anchor = Anchor
   module Path_resolver_step = Path_resolver_step
   module Stroke = Stroke
+  module Text = Text
+  module Element = Element
   include module type of Fill with type t := Fill.t
   include module type of Shapes
-  include module type of Text
 end

@@ -63,7 +63,8 @@ let run ~cache_path ~port ~autoreload =
            Message.respond
              ~filename:messages_filename
              ~validate:(fun message ->
-               Home.render_message message |> Or_error.map ~f:ignore)
+               Home.render_message ~fill:(Drawing.Fill.solid `b) message
+               |> Or_error.map ~f:ignore)
              ~body
              request
          | _, "api" :: _ ->

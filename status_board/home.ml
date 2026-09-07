@@ -5,19 +5,20 @@ let max_width_message = String.make 14 'W'
 let status_text_size = 31.
 let font = lazy (Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
 
-let render_message message =
+let render_message ~fill message =
   let%bind.Or_error () =
     match String.for_all message ~f:(fun character -> Char.to_int character < 128) with
     | true -> Ok ()
     | false -> Or_error.error_string "messages must contain only ASCII characters"
   in
   let%bind.Or_error font = Lazy.force font in
-  let rendered = Font.render_text font message ~size:status_text_size in
-  let limit = Font.render_text font max_width_message ~size:status_text_size in
-  match rendered.width <= limit.width with
-  | true -> Ok rendered
-  | false ->
-    Or_error.errorf "message too wide (%d of %d pixel limit)" rendered.width limit.width
+  let element = Drawing.Text.create ~font ~fill message ~size:status_text_size in
+  let limit = Drawing.Text.create ~font ~fill max_width_message ~size:status_text_size in
+  let width, _ = Drawing.Element.size element
+  and max_width, _ = Drawing.Element.size limit in
+  match width <= max_width with
+  | true -> Ok element
+  | false -> Or_error.errorf "message too wide (%d of %d pixel limit)" width max_width
 ;;
 
 module Draw_inputs = struct
@@ -166,8 +167,10 @@ let draw
     |> String.concat ~sep:" "
   in
   let status_text_padding = base_padding in
-  let rendered_voltage = Font.render_text font voltage_text ~size:status_text_size
-  and rendered_updated = Font.render_text font updated_text ~size:status_text_size
+  let rendered_voltage =
+    Text.create ~font ~fill:device_status_text_fill voltage_text ~size:status_text_size
+  and rendered_updated =
+    Text.create ~font ~fill:device_status_text_fill updated_text ~size:status_text_size
   and rendered_status_height = Font.render_text font "Ag" ~size:status_text_size in
   let status_text_baseline = status_text_padding + rendered_status_height.baseline_y in
   let%bind.Or_error message =
@@ -183,19 +186,37 @@ let draw
       in
       (match String.is_empty message with
        | true -> Ok None
-       | false -> render_message message |> Or_error.map ~f:Option.some)
+       | false ->
+         render_message ~fill:(solid inverse_background_color) message
+         |> Or_error.map ~f:Option.some)
   in
   let geo_stroke = Stroke.solid `b 8 in
   rect context ~fill:(solid background_color) (0, 0) (w, h);
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let inter_subway_padding = 0 in
-  let available_bike_status_size = Citibike_status.availability_size status_box_style
-  and parking_status_size = Citibike_status.parking_size status_box_style in
+  let bedford_status =
+    Subway.Status.element ~style:status_box_style ~label:"bedford" bedford_status
+  and marcy_status =
+    Subway.Status.element ~style:status_box_style ~label:"marcy" marcy_status
+  and bridge_status =
+    Citibike_status.availability ~style:status_box_style ~label:"bridge" bridge_status
+  and roebling_status =
+    Citibike_status.availability ~style:status_box_style ~label:"roeb" roebling_status
+  and vesey_status =
+    Citibike_status.parking ~style:status_box_style ~label:"ves" vesey_status
+  and west_status =
+    Citibike_status.parking ~style:status_box_style ~label:"west" west_status
+  and barclay_status =
+    Citibike_status.parking ~style:status_box_style ~label:"barc" barclay_status
+  and fulton_status =
+    Citibike_status.parking ~style:status_box_style ~label:"ful" fulton_status
+  in
   let available_bike_status_width, available_bike_status_height =
-    available_bike_status_size
-  and parking_status_width, parking_status_height = parking_status_size
-  and subway_status_width = Subway.Status.width status_box_style in
+    Element.size bridge_status
+  and parking_status_width, parking_status_height = Element.size vesey_status
+  and subway_status_width, bedford_status_height = Element.size bedford_status
+  and _, marcy_status_height = Element.size marcy_status in
   let geo_stroke_safe_padding = Stroke.safe_padding geo_stroke in
   let manhattan_left = screen_edge_padding + geo_stroke_safe_padding
   and manhattan_bottom = h - screen_edge_padding - geo_stroke_safe_padding in
@@ -209,8 +230,6 @@ let draw
     parking_grid_top - ((parking_status_height + base_padding) / 2)
   in
   let parking_grid_right = parking_grid_right_column + parking_status_width in
-  let bedford_status_height = Subway.Status.height status_box_style bedford_status
-  and marcy_status_height = Subway.Status.height status_box_style marcy_status in
   let brooklyn_height =
     base_padding
     + screen_edge_padding
@@ -368,61 +387,38 @@ let draw
     ; m_vert_x, m_houston_y
     ; m_vert_x, map_faded_top
     ];
-  Subway.Status.draw
+  Element.draw
+    bedford_status
     context
-    ~anchor:(Anchor.Ur (subway_status_right, bedford_status_top))
-    ~style:status_box_style
-    ~label:"bedford"
-    bedford_status;
-  Subway.Status.draw
-    context
-    ~anchor:(Anchor.Ur (subway_status_right, marcy_status_top))
-    ~style:status_box_style
-    ~label:"marcy"
-    marcy_status;
+    ((Right, subway_status_right), (Top, bedford_status_top));
+  Element.draw marcy_status context ((Right, subway_status_right), (Top, marcy_status_top));
   let bike_status_rx = subway_status_left - base_padding in
-  Citibike_status.draw_availability
+  Element.draw
+    bridge_status
     context
-    ~anchor:(Anchor.Lr (bike_status_rx, bridge_status_bottom))
-    ~style:status_box_style
-    ~label:"bridge"
-    bridge_status;
-  Citibike_status.draw_availability
+    ((Right, bike_status_rx), (Bottom, bridge_status_bottom));
+  Element.draw
+    roebling_status
     context
-    ~anchor:(Anchor.Ur (bike_status_rx, j_y + Subway.stroke_safe_padding + base_padding))
-    ~style:status_box_style
-    ~label:"roeb"
-    roebling_status;
-  Citibike_status.draw_parking
+    ((Right, bike_status_rx), (Top, j_y + Subway.stroke_safe_padding + base_padding));
+  Element.draw
+    vesey_status
     context
-    ~anchor:(Anchor.Ul (parking_grid_left, parking_grid_left_column_top))
-    ~style:status_box_style
-    ~label:"ves"
-    vesey_status;
-  Citibike_status.draw_parking
+    ((Left, parking_grid_left), (Top, parking_grid_left_column_top));
+  Element.draw
+    west_status
     context
-    ~anchor:
-      (Anchor.Ul
-         ( parking_grid_left
-         , parking_grid_left_column_top + parking_status_height + base_padding ))
-    ~style:status_box_style
-    ~label:"west"
-    west_status;
-  Citibike_status.draw_parking
+    ( (Left, parking_grid_left)
+    , (Top, parking_grid_left_column_top + parking_status_height + base_padding) );
+  Element.draw
+    barclay_status
     context
-    ~anchor:(Anchor.Ul (parking_grid_right_column, parking_grid_top))
-    ~style:status_box_style
-    ~label:"barc"
-    barclay_status;
-  Citibike_status.draw_parking
+    ((Left, parking_grid_right_column), (Top, parking_grid_top));
+  Element.draw
+    fulton_status
     context
-    ~anchor:
-      (Anchor.Ul
-         ( parking_grid_right_column
-         , parking_grid_top + parking_status_height + base_padding ))
-    ~style:status_box_style
-    ~label:"ful"
-    fulton_status;
+    ( (Left, parking_grid_right_column)
+    , (Top, parking_grid_top + parking_status_height + base_padding) );
   Sky.draw_sun_moon
     context
     ~light_fill:(light_fill ?offset:None)
@@ -434,30 +430,16 @@ let draw
     ~status_text_size
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
-  text
+  Element.draw
+    rendered_voltage
     context
-    ~font
-    ~fill:device_status_text_fill
-    ~origin_x:(status_text_padding + rendered_voltage.origin_x)
-    ~baseline_y:status_text_baseline
-    ~size:status_text_size
-    voltage_text;
-  text
+    ((Left, status_text_padding), (Baseline, status_text_baseline));
+  Element.draw
+    rendered_updated
     context
-    ~font
-    ~fill:device_status_text_fill
-    ~origin_x:
-      (w - status_text_padding - rendered_updated.width + rendered_updated.origin_x)
-    ~baseline_y:status_text_baseline
-    ~size:status_text_size
-    updated_text;
+    ((Right, w - status_text_padding), (Baseline, status_text_baseline));
   Option.iter message ~f:(fun message ->
-    blit_rendered_text
-      context
-      ~fill:(solid inverse_background_color)
-      ~baseline_y:status_text_baseline
-      ~origin_x:(((w - message.width) / 2) + message.origin_x)
-      message);
+    Element.draw message context ((Center, w / 2), (Baseline, status_text_baseline)));
   let farther_wall_x, sun_moon_near_side_x =
     match sun_moon_center_x < w / 2 with
     | true -> w, sun_moon_center_x + sun_moon_radius
@@ -535,29 +517,36 @@ let draw
   (match weather.us_aqi with
    | Some aqi when Float.(aqi > 100.) ->
      let aqi = Int.to_string (Float.iround_nearest_exn aqi) in
-     let rendered_aqi = Font.render_text font [%string "AQI %{aqi}"] ~size:label_size in
-     let aqi_padding = 4 in
-     let aqi_width = 62 in
-     let aqi_left = (w - aqi_width) / 2 in
-     let aqi_right = aqi_left + aqi_width - 1 in
-     let aqi_bottom = map_faded_top - base_padding in
-     let aqi_top = aqi_bottom - rendered_aqi.height - (2 * aqi_padding) in
-     rounded_polygon
-       context
-       ~radius:6
-       ~fill:(solid background_color)
-       ~stroke:(Stroke.solid inverse_background_color 1)
-       [ aqi_left, aqi_top
-       ; aqi_right, aqi_top
-       ; aqi_right, aqi_bottom
-       ; aqi_left, aqi_bottom
-       ];
-     blit_rendered_text
-       context
-       ~fill:(solid inverse_background_color)
-       ~origin_x:(((w - rendered_aqi.width) / 2) + rendered_aqi.origin_x)
-       ~baseline_y:(aqi_top + aqi_padding + rendered_aqi.baseline_y)
-       rendered_aqi
+     let aqi_text =
+       Text.create
+         ~font
+         ~fill:(solid inverse_background_color)
+         [%string "AQI %{aqi}"]
+         ~size:label_size
+     in
+     let _, text_height = Element.size aqi_text in
+     let padding = 4 in
+     let width = 62
+     and height = text_height + (2 * padding) in
+     let badge =
+       Element.create
+         ~size:(width, height)
+         ~draw:(fun context ~upper_left:(left, top) ->
+           let right = left + width - 1
+           and bottom = top + height in
+           rounded_polygon
+             context
+             ~radius:6
+             ~fill:(solid background_color)
+             ~stroke:(Stroke.solid inverse_background_color 1)
+             [ left, top; right, top; right, bottom; left, bottom ];
+           Element.draw
+             aqi_text
+             context
+             ((Center, left + (width / 2)), (Top, top + padding)))
+         ()
+     in
+     Element.draw badge context ((Center, w / 2), (Bottom, map_faded_top - base_padding))
    | Some _ | None -> ());
   Ok bitmap
 ;;

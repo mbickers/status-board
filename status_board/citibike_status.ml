@@ -46,34 +46,6 @@ let create (station : Feeds.Citibike.Station.t) =
   }
 ;;
 
-let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
-  let rendered_text = Font.render_text font text ~size in
-  Drawing.Text.text
-    context
-    ~font
-    ~fill
-    ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
-    ~baseline_y
-    ~size
-    text
-;;
-
-let draw_box context ~anchor ~style ~label ~box_size t ~is_enabled ~f =
-  let upper_left, lower_right = Drawing.Anchor.resolve anchor ~size:box_size in
-  Status_box.draw
-    context
-    upper_left
-    lower_right
-    ~style
-    ~label
-    ~fill:
-      (match is_enabled with
-       | true ->
-         Drawing.Fill.fractional ~frac:t.bikes_available_frac ~frontier_angle_degrees:15.
-       | false -> fun _ -> Status_box.Style.error_fill style)
-    ~f
-;;
-
 let parking_size style =
   let count_width, _ =
     Font.max_width
@@ -94,100 +66,90 @@ let availability_size style =
   , parking_height + 10 )
 ;;
 
-let draw_availability context ~anchor ~style ~label t =
+let availability ~style ~label t =
   let font = Status_box.Style.font style in
-  draw_box
-    context
-    ~anchor
-    ~style
-    ~label
-    ~box_size:(availability_size style)
-    t
-    ~is_enabled:
-      (match t.availability with
-       | Availability.Renting _ -> true
-       | Not_renting -> false)
-    ~f:(fun context ~fill ->
-      match t.availability with
-      | Availability.Not_renting -> ()
-      | Renting { classic_bikes_available; electric_bikes_available } ->
-        let width, height = Drawing.Context.size context in
-        let count_size = Status_box.Style.primary_font_size style
-        and base_padding = Status_box.Style.base_padding style
-        and horizontal_padding_between_text =
-          Status_box.Style.horizontal_padding_between_text style
-        in
-        let baseline_y = height - Status_box.Style.baseline_padding style
-        and left = base_padding
-        and right = width - base_padding in
-        let fill = Drawing.Fill.invert fill in
-        let middle = (left + right) / 2 in
-        let bikes_right = middle - (horizontal_padding_between_text / 2)
-        and ebikes_left = middle + (horizontal_padding_between_text / 2) in
-        let ebikes_available = Int.to_string electric_bikes_available in
-        draw_centered_text
-          context
+  let width, height = availability_size style in
+  let fill, counts =
+    match t.availability with
+    | Not_renting -> Status_box.Style.error_fill style, None
+    | Renting { classic_bikes_available; electric_bikes_available } ->
+      let fill =
+        Drawing.Fill.fractional
+          ~frac:t.bikes_available_frac
+          ~frontier_angle_degrees:15.
+          ~size:(width, height)
+      in
+      let size = Status_box.Style.primary_font_size style in
+      let text_fill = Drawing.Fill.invert fill in
+      let classic =
+        Drawing.Text.create
           ~font
-          ~fill
-          ~size:count_size
-          ~baseline_y
-          ~left
-          ~right:bikes_right
-          (Int.to_string classic_bikes_available);
-        draw_centered_text
-          context
+          ~size
+          ~fill:text_fill
+          (Int.to_string classic_bikes_available)
+      and electric =
+        Drawing.Text.create
           ~font
-          ~fill
-          ~size:count_size
-          ~baseline_y
-          ~left:ebikes_left
-          ~right
-          ebikes_available;
-        let ebike_label_size = 22. in
-        let rendered_ebikes = Font.render_text font ebikes_available ~size:count_size
-        and rendered_ebike_label = Font.render_text font "e" ~size:ebike_label_size in
-        draw_centered_text
-          context
-          ~font
-          ~fill
-          ~size:ebike_label_size
-          ~baseline_y:
-            (baseline_y
-             - rendered_ebikes.baseline_y
-             - 5
-             - rendered_ebike_label.height
-             + rendered_ebike_label.baseline_y)
-          ~left:ebikes_left
-          ~right
-          "e")
+          ~size
+          ~fill:text_fill
+          (Int.to_string electric_bikes_available)
+      and label = Drawing.Text.create ~font ~size:22. ~fill:text_fill "e" in
+      fill, Some (classic, electric, label)
+  in
+  let content =
+    Drawing.Element.create
+      ~size:(width, height)
+      ~draw:(fun context ~upper_left:(x, y) ->
+        Option.iter counts ~f:(fun (classic, electric, label) ->
+          let padding = Status_box.Style.base_padding style in
+          let gap = Status_box.Style.horizontal_padding_between_text style in
+          let middle = width / 2 in
+          let classic_x = x + ((padding + middle - (gap / 2)) / 2)
+          and electric_x = x + ((middle + (gap / 2) + width - padding) / 2)
+          and bottom = y + height - Status_box.Style.baseline_padding style in
+          let _, electric_height = Drawing.Element.size electric in
+          Drawing.Element.draw classic context ((Center, classic_x), (Baseline, bottom));
+          Drawing.Element.draw electric context ((Center, electric_x), (Baseline, bottom));
+          Drawing.Element.draw
+            label
+            context
+            ((Center, electric_x), (Bottom, bottom - electric_height - 4))))
+      ()
+  in
+  Status_box.create ~style ~label ~fill ~content ()
 ;;
 
-let draw_parking context ~anchor ~style ~label t =
-  let font = Status_box.Style.font style in
-  draw_box
-    context
-    ~anchor
-    ~style
-    ~label
-    ~box_size:(parking_size style)
-    t
-    ~is_enabled:
-      (match t.parking with
-       | Parking.Accepting_returns _ -> true
-       | Not_accepting_returns -> false)
-    ~f:(fun context ~fill ->
-      match t.parking with
-      | Parking.Not_accepting_returns -> ()
-      | Accepting_returns { docks_available } ->
-        let width, height = Drawing.Context.size context in
-        let base_padding = Status_box.Style.base_padding style in
-        draw_centered_text
-          context
-          ~font
-          ~fill:(Drawing.Fill.invert fill)
-          ~size:(Status_box.Style.primary_font_size style)
-          ~baseline_y:(height - Status_box.Style.baseline_padding style)
-          ~left:base_padding
-          ~right:(width - base_padding)
-          (Int.to_string docks_available))
+let parking ~style ~label t =
+  let width, height = parking_size style in
+  let fill, count =
+    match t.parking with
+    | Not_accepting_returns -> Status_box.Style.error_fill style, None
+    | Accepting_returns { docks_available } ->
+      let fill =
+        Drawing.Fill.fractional
+          ~frac:t.bikes_available_frac
+          ~frontier_angle_degrees:15.
+          ~size:(width, height)
+      in
+      ( fill
+      , Some
+          (Drawing.Text.create
+             ~font:(Status_box.Style.font style)
+             ~size:(Status_box.Style.primary_font_size style)
+             ~fill:(Drawing.Fill.invert fill)
+             (Int.to_string docks_available)) )
+  in
+  let content =
+    Drawing.Element.create
+      ~size:(width, height)
+      ~draw:(fun context ~upper_left:(x, y) ->
+        Option.iter count ~f:(fun count ->
+          Drawing.Element.draw
+            count
+            context
+            ( (Center, x + (width / 2))
+            , (Baseline, y + height - Status_box.Style.baseline_padding style) )))
+      ()
+  in
+  Status_box.create ~style ~label ~fill ~content ()
 ;;

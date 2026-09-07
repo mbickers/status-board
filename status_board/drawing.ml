@@ -33,19 +33,81 @@ module Context = struct
   ;;
 end
 
-module Anchor = struct
-  type t =
-    | Ul of int * int
-    | Ur of int * int
-    | Ll of int * int
-    | Lr of int * int
+module Element = struct
+  module Horizontal_alignment = struct
+    type t =
+      | Left
+      | Center
+      | Right
+  end
 
-  let resolve t ~size:(width, height) =
-    match t with
-    | Ul (left, top) -> (left, top), (left + width, top + height)
-    | Ur (right, top) -> (right - width, top), (right, top + height)
-    | Ll (left, bottom) -> (left, bottom - height), (left + width, bottom)
-    | Lr (right, bottom) -> (right - width, bottom - height), (right, bottom)
+  module Vertical_alignment = struct
+    type t =
+      | Top
+      | Center
+      | Bottom
+      | Baseline
+  end
+
+  module Anchor = struct
+    type t = (Horizontal_alignment.t * int) * (Vertical_alignment.t * int)
+  end
+
+  type t =
+    { size : int * int
+    ; baseline : int
+    ; paint : Context.t -> upper_left:int * int -> unit
+    }
+
+  let size t = t.size
+
+  let create ?baseline ~size ~draw () =
+    { size; baseline = Option.value baseline ~default:(snd size); paint = draw }
+  ;;
+
+  let draw t context ((horizontal, x), (vertical, y)) =
+    let width, height = t.size in
+    let left =
+      match horizontal with
+      | Horizontal_alignment.Left -> x
+      | Center -> x - (width / 2)
+      | Right -> x - width
+    and top =
+      match vertical with
+      | Vertical_alignment.Top -> y
+      | Center -> y - (height / 2)
+      | Bottom -> y - height
+      | Baseline -> y - t.baseline
+    in
+    t.paint context ~upper_left:(left, top)
+  ;;
+
+  let column ~gap ~align children =
+    let width, height =
+      List.fold children ~init:(0, 0) ~f:(fun (width, height) child ->
+        let w, h = size child in
+        Int.max width w, height + h + gap)
+    in
+    let height =
+      match children with
+      | [] -> 0
+      | _ -> height - gap
+    in
+    create
+      ~size:(width, height)
+      ~draw:(fun context ~upper_left:(left, top) ->
+        let x =
+          match align with
+          | Horizontal_alignment.Left -> left
+          | Center -> left + (width / 2)
+          | Right -> left + width
+        in
+        ignore
+          (List.fold children ~init:top ~f:(fun top child ->
+             draw child context ((align, x), (Top, top));
+             top + snd (size child) + gap)
+           : int))
+      ()
   ;;
 end
 
@@ -112,8 +174,7 @@ module Fill = struct
       | false -> color
   ;;
 
-  let fractional ~frac ~frontier_angle_degrees context =
-    let width, height = Context.size context in
+  let fractional ~frac ~frontier_angle_degrees ~size:(width, height) =
     match Float.compare frac 0. <= 0, Float.compare frac 1. >= 0 with
     | true, _ -> solid `w
     | false, true -> solid `b
@@ -419,46 +480,37 @@ module Shapes = struct
 end
 
 module Text = struct
-  let blit_rendered_text
-        ?halo
-        context
-        ~fill
-        ~origin_x
-        ~baseline_y
-        (rendered_text : Font.Rendered_text.t)
-    =
-    let iter_black_pixels ~f =
-      for y = 0 to rendered_text.height - 1 do
-        for x = 0 to rendered_text.width - 1 do
-          match
-            Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x)
-            >= 128
-          with
-          | true ->
-            f
-              ( origin_x - rendered_text.origin_x + x
-              , baseline_y - rendered_text.baseline_y + y )
-          | false -> ()
-        done
-      done
-    in
-    Option.iter halo ~f:(fun (distance, halo_fill) ->
-      iter_black_pixels ~f:(fun (x, y) ->
-        for dy = -distance to distance do
-          for dx = -distance to distance do
-            match (dx * dx) + (dy * dy) <= distance * distance with
-            | true ->
-              let point = x + dx, y + dy in
-              Context.write context point (halo_fill point)
-            | false -> ()
-          done
-        done));
-    iter_black_pixels ~f:(fun point -> Context.write context point (fill point))
-  ;;
-
-  let text ?halo context ~font ~fill ~origin_x ~baseline_y ~size string =
+  let create ?halo ~font ~fill ~size string =
     let rendered_text = Font.render_text font string ~size in
-    blit_rendered_text ?halo context ~fill ~origin_x ~baseline_y rendered_text
+    Element.create
+      ~baseline:rendered_text.baseline_y
+      ~size:(rendered_text.width, rendered_text.height)
+      ~draw:(fun context ~upper_left:(left, top) ->
+        let iter_black_pixels ~f =
+          for y = 0 to rendered_text.height - 1 do
+            for x = 0 to rendered_text.width - 1 do
+              match
+                Bigarray.Array1.get rendered_text.buffer ((y * rendered_text.width) + x)
+                >= 128
+              with
+              | true -> f (left + x, top + y)
+              | false -> ()
+            done
+          done
+        in
+        Option.iter halo ~f:(fun (distance, halo_fill) ->
+          iter_black_pixels ~f:(fun (x, y) ->
+            for dy = -distance to distance do
+              for dx = -distance to distance do
+                match (dx * dx) + (dy * dy) <= distance * distance with
+                | true ->
+                  let point = x + dx, y + dy in
+                  Context.write context point (halo_fill point)
+                | false -> ()
+              done
+            done));
+        iter_black_pixels ~f:(fun point -> Context.write context point (fill point)))
+      ()
   ;;
 end
 
@@ -513,7 +565,7 @@ module Graph = struct
       List.map ticks ~f:(fun tick ->
         ( tick.Tick.position_frac
         , Option.map tick.label ~f:(fun label ->
-            Font.render_text font label ~size:label_size) ))
+            Text.create ?halo:label_halo ~font ~fill:label_fill label ~size:label_size) ))
     in
     let x_ticks = render_ticks x_ticks
     and y_ticks = render_ticks y_ticks in
@@ -528,7 +580,8 @@ module Graph = struct
         match rendered with
         | None -> width, height
         | Some text ->
-          Int.max width text.Font.Rendered_text.width, Int.max height text.height)
+          let text_width, text_height = Element.size text in
+          Int.max width text_width, Int.max height text_height)
     in
     let y_label_width, y_label_height = max_label_size y_ticks
     and x_label_width, x_label_height = max_label_size x_ticks in
@@ -559,13 +612,10 @@ module Graph = struct
         (Float.of_int (left - tick_length), tick_y)
         (x 0., tick_y);
       Option.iter rendered ~f:(fun rendered ->
-        Text.blit_rendered_text
-          ?halo:label_halo
+        Element.draw
+          rendered
           context
-          ~fill:label_fill
-          ~origin_x:(left - tick_length - label_gap - rendered.width + rendered.origin_x)
-          ~baseline_y:(Float.iround_nearest_exn tick_y + rendered.baseline_y)
-          rendered));
+          ((Right, left - tick_length - label_gap), (Top, Float.iround_nearest_exn tick_y))));
     let label_shift = 5 in
     List.iter x_ticks ~f:(fun (position_frac, rendered) ->
       let tick_length =
@@ -580,14 +630,11 @@ module Graph = struct
         (tick_x, y 0.)
         (tick_x, Float.of_int (bottom + tick_length));
       Option.iter rendered ~f:(fun rendered ->
-        let label_left = Float.iround_nearest_exn tick_x - rendered.width + label_shift in
-        Text.blit_rendered_text
-          ?halo:label_halo
+        Element.draw
+          rendered
           context
-          ~fill:label_fill
-          ~origin_x:(label_left + rendered.origin_x)
-          ~baseline_y:(bottom + tick_length + label_gap + rendered.baseline_y + 2)
-          rendered));
+          ( (Right, Float.iround_nearest_exn tick_x + label_shift)
+          , (Top, bottom + tick_length + label_gap + 2) )));
     ignore
       (List.fold points ~init:None ~f:(fun previous point ->
          match point.Point.y_frac with
@@ -597,26 +644,20 @@ module Graph = struct
            Shapes.draw_line context ~stroke (Option.value previous ~default:point) point;
            Some point)
        : (float * float) option);
-    let missing_label = lazy (Font.render_text font "?" ~size:label_size) in
+    let missing_label =
+      lazy (Text.create ?halo:label_halo ~font ~fill:label_fill "?" ~size:label_size)
+    in
     ignore
       (List.fold points ~init:0.5 ~f:(fun last_y_frac point ->
          match point.Point.y_frac with
          | Some y_frac -> y_frac
          | None ->
            let rendered = Lazy.force missing_label in
-           Text.blit_rendered_text
-             ?halo:label_halo
+           Element.draw
+             rendered
              context
-             ~fill:label_fill
-             ~origin_x:
-               (Float.iround_nearest_exn (x point.x_frac)
-                - (rendered.width / 2)
-                + rendered.origin_x)
-             ~baseline_y:
-               (Float.iround_nearest_exn (y last_y_frac)
-                - (rendered.height / 2)
-                + rendered.baseline_y)
-             rendered;
+             ( (Center, Float.iround_nearest_exn (x point.x_frac))
+             , (Center, Float.iround_nearest_exn (y last_y_frac)) );
            last_y_frac)
        : float)
   ;;
@@ -625,10 +666,10 @@ end
 module O = struct
   module Graph = Graph
   module Context = Context
-  module Anchor = Anchor
   module Path_resolver_step = Path_resolver_step
   module Stroke = Stroke
   include Fill
   include Shapes
-  include Text
+  module Text = Text
+  module Element = Element
 end

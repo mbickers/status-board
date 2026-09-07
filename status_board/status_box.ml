@@ -22,63 +22,61 @@ module Style = struct
   let error_fill t = t.error_fill
 end
 
-let draw
-      ?(fill = fun _ -> Drawing.Fill.solid `w)
-      context
-      (left, top)
-      (right, bottom)
-      ~style
-      ~label
-      ~f
-  =
-  let radius = 10
-  and stroke_width = 4
-  and stroke_fill = Drawing.Fill.solid `b in
-  let box_context =
-    Drawing.Context.crop context ~offset:(left, top) ~size:(right - left, bottom - top)
+let create ?(fill = Drawing.Fill.solid `w) ~style ~label ~content () =
+  let size = Drawing.Element.size content in
+  let label =
+    Drawing.Text.create
+      ~font:(Style.font style)
+      ~size:(Style.label_size style)
+      ~fill:(Drawing.Fill.solid `b)
+      ~halo:(3, Drawing.Fill.solid `w)
+      label
   in
-  let fill = fill box_context in
-  let inside ~inset (x, y) =
-    let left = left + inset
-    and top = top + inset
-    and right = right - inset
-    and bottom = bottom - inset
-    and radius = radius - inset in
-    let nearest_x = Int.max (left + radius) (Int.min (right - radius - 1) x)
-    and nearest_y = Int.max (top + radius) (Int.min (bottom - radius - 1) y) in
-    let dx = x - nearest_x
-    and dy = y - nearest_y in
-    (dx * dx) + (dy * dy) <= radius * radius
-  in
-  let iter_pixels ~f =
-    for y = top to bottom - 1 do
-      for x = left to right - 1 do
-        match inside ~inset:0 (x, y) with
-        | true -> f (x, y) ~is_interior:(inside ~inset:stroke_width (x, y))
-        | false -> ()
-      done
-    done
-  in
-  iter_pixels ~f:(fun ((x, y) as point) ~is_interior ->
-    Drawing.Context.write
-      context
-      point
-      (match is_interior with
-       | true -> fill (x - left, y - top)
-       | false -> stroke_fill point));
-  f box_context ~fill;
-  iter_pixels ~f:(fun point ~is_interior ->
-    match is_interior with
-    | true -> ()
-    | false -> Drawing.Context.write context point (stroke_fill point));
-  let font = Style.font style
-  and label_size = Style.label_size style in
-  let rendered_label = Font.render_text font label ~size:label_size in
-  Drawing.Text.blit_rendered_text
-    ~halo:(3, Drawing.Fill.solid `w)
-    context
-    ~fill:(Drawing.Fill.solid `b)
-    ~origin_x:(left + radius + 2 + rendered_label.origin_x)
-    ~baseline_y:(top - 2 + rendered_label.baseline_y)
-    rendered_label
+  Drawing.Element.create
+    ~size
+    ~draw:(fun context ~upper_left:(left, top) ->
+      let width, height = size in
+      let right = left + width
+      and bottom = top + height in
+      let radius = 10
+      and stroke_width = 4
+      and stroke_fill = Drawing.Fill.solid `b in
+      let box_context =
+        Drawing.Context.crop context ~offset:(left, top) ~size:(right - left, bottom - top)
+      in
+      let inside ~inset (x, y) =
+        let left = left + inset
+        and top = top + inset
+        and right = right - inset
+        and bottom = bottom - inset
+        and radius = radius - inset in
+        let nearest_x = Int.max (left + radius) (Int.min (right - radius - 1) x)
+        and nearest_y = Int.max (top + radius) (Int.min (bottom - radius - 1) y) in
+        let dx = x - nearest_x
+        and dy = y - nearest_y in
+        (dx * dx) + (dy * dy) <= radius * radius
+      in
+      let iter_pixels ~f =
+        for y = top to bottom - 1 do
+          for x = left to right - 1 do
+            match inside ~inset:0 (x, y) with
+            | true -> f (x, y) ~is_interior:(inside ~inset:stroke_width (x, y))
+            | false -> ()
+          done
+        done
+      in
+      iter_pixels ~f:(fun ((x, y) as point) ~is_interior ->
+        Drawing.Context.write
+          context
+          point
+          (match is_interior with
+           | true -> fill (x - left, y - top)
+           | false -> stroke_fill point));
+      Drawing.Element.draw content box_context ((Left, 0), (Top, 0));
+      iter_pixels ~f:(fun point ~is_interior ->
+        match is_interior with
+        | true -> ()
+        | false -> Drawing.Context.write context point (stroke_fill point));
+      Drawing.Element.draw label context ((Left, left + radius + 2), (Top, top - 2)))
+    ()
 ;;

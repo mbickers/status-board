@@ -22,21 +22,5 @@ type t =
   }
 
 val create : Feeds.Citibike.Station.t -> t
-val availability_size : Status_box.Style.t -> int * int
-val parking_size : Status_box.Style.t -> int * int
-
-val draw_availability
-  :  Drawing.Context.t
-  -> anchor:Drawing.Anchor.t
-  -> style:Status_box.Style.t
-  -> label:string
-  -> t
-  -> unit
-
-val draw_parking
-  :  Drawing.Context.t
-  -> anchor:Drawing.Anchor.t
-  -> style:Status_box.Style.t
-  -> label:string
-  -> t
-  -> unit
+val availability : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
+val parking : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
