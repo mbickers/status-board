@@ -9,7 +9,7 @@
 <body>
   <p><a href="/">home</a></p>
   <form method="post">
-    <label for="message">write us a message (not too long, there's a width limit):</label><br>
+    <label for="message">Write us a message (not too long, there's a width limit):</label><br>
     {{#error}}<span style="color: red">{{.}}</span><br>{{/error}}
     <input id="message" name="message" type="text" value="{{attempted}}" {{#error}}aria-invalid="true"{{/error}}>
     <button type="submit">send</button>

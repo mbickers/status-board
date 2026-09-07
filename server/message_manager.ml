@@ -88,9 +88,12 @@ let respond t ~path:(`Exact _) ~validate ~body request =
          |> Option.value ~default:""
        in
        let validation =
-         match String.length attempted > 100 with
-         | true -> Or_error.error_string "Messages must be 100 characters or fewer"
-         | false -> validate attempted
+         match
+           String.is_empty (String.strip attempted), String.length attempted > 100
+         with
+         | true, _ -> Or_error.error_string "message must not be empty"
+         | false, true -> Or_error.error_string "message must be 100 characters or fewer"
+         | false, false -> validate attempted
        in
        (match validation with
         | Error error ->
