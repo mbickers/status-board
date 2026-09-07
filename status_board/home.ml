@@ -1086,7 +1086,17 @@ let render input cache ~message =
            ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
            ; maximum_uv_index = Some 10.
            ; us_aqi = Some 499.
-           ; conditions = Weather_info.Conditions.Not_cloudy
+           ; conditions =
+               Weather_info.Conditions.Cloudy
+                 (Some
+                    { precipitation = { kind = Snow; thunder = false }
+                    ; samples =
+                        List.init 9 ~f:(fun hour ->
+                          { Weather_info.Precipitation.Sample.time =
+                              Time_ns.add now (Time_ns.Span.of_int_hr hour)
+                          ; probability_frac = Some 1.
+                          })
+                    })
            ; moon_phase = Some 0.7
            ; sunrise =
                Time_ns.occurrence
