@@ -113,13 +113,16 @@ let draw_sun_moon
       ~light_fill
       ~dark_fill
       ~is_night
-      ~moon_phase
+      ~weather
+      ~font
+      ~text_fill
+      ~status_text_size
       ~center:((center_x, center_y) as center)
       ~radius
   =
   let open Drawing.O in
   let fill =
-    match is_night, moon_phase with
+    match is_night, weather.Weather_info.moon_phase with
     | false, _ | true, None -> light_fill
     | true, Some phase -> moon_fill ~light_fill ~dark_fill ~center ~radius ~phase
   in
@@ -138,7 +141,72 @@ let draw_sun_moon
          ~stroke:tick_stroke
          (point (radius + 10) angle)
          (point (radius + 25) angle)));
-  circle context ~fill ~center ~radius
+  circle context ~fill ~center ~radius;
+  let temperature_text = fahrenheit_text weather.current_temperature_celsius
+  and low_high_text =
+    [ "l" ^ fahrenheit_text weather.low_temperature_celsius
+    ; "h" ^ fahrenheit_text weather.high_temperature_celsius
+    ]
+    |> String.concat ~sep:"  "
+  and temperature_size = 70.
+  and text_spacing = 4 in
+  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
+  and rendered_low_high = Font.render_text font low_high_text ~size:status_text_size
+  and rendered_uv =
+    Option.bind weather.maximum_uv_index ~f:(fun uv ->
+      match Float.compare uv 6. > 0 with
+      | false -> None
+      | true ->
+        let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
+        Some (text, Font.render_text font text ~size:status_text_size))
+  in
+  let uv_height =
+    Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
+      text_spacing + rendered_uv.height)
+  in
+  let text_top =
+    center_y
+    - ((rendered_temperature.height + text_spacing + rendered_low_high.height + uv_height)
+       / 2)
+  in
+  draw_centered_text
+    context
+    ~font
+    ~fill:text_fill
+    ~size:temperature_size
+    ~baseline_y:(text_top + rendered_temperature.baseline_y)
+    ~left:(center_x - radius)
+    ~right:(center_x + radius)
+    temperature_text;
+  draw_centered_text
+    context
+    ~font
+    ~fill:text_fill
+    ~size:status_text_size
+    ~baseline_y:
+      (text_top
+       + rendered_temperature.height
+       + text_spacing
+       + rendered_low_high.baseline_y)
+    ~left:(center_x - radius)
+    ~right:(center_x + radius)
+    low_high_text;
+  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
+    draw_centered_text
+      context
+      ~font
+      ~fill:text_fill
+      ~size:status_text_size
+      ~baseline_y:
+        (text_top
+         + rendered_temperature.height
+         + text_spacing
+         + rendered_low_high.height
+         + text_spacing
+         + rendered_uv.baseline_y)
+      ~left:(center_x - radius)
+      ~right:(center_x + radius)
+      uv_text)
 ;;
 
 let draw_bird context ~wing_width ~center:(x, y) =
@@ -362,15 +430,33 @@ let draw ~font draw_inputs =
   let base_padding = 8 in
   let screen_edge_padding = base_padding in
   let is_night, sun_moon_progress_frac = day_night_phase weather ~at:now in
-  let base_color =
+  let background_color =
     match is_night with
     | true -> `b
     | false -> `w
   in
-  let inverse_base_color =
-    match base_color with
+  let inverse_background_color =
+    match background_color with
     | `b -> `w
     | `w -> `b
+  in
+  let black = solid `b in
+  let light_fill = bayer_exn ~size:16 ~white_frac:0.79 in
+  let moon_dark_fill = bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
+  let device_status_text_fill =
+    match is_night with
+    | true -> invert (light_fill ?offset:None)
+    | false -> light_fill ?offset:None
+  in
+  let cloud_fill =
+    match is_night with
+    | true -> moon_dark_fill
+    | false -> light_fill
+  in
+  let land_fill =
+    match is_night with
+    | true -> moon_dark_fill
+    | false -> bayer_exn ~size:16 ~white_frac:(254. /. 256.)
   in
   let label_size = 17. in
   let graph_style =
@@ -425,16 +511,8 @@ let draw ~font draw_inputs =
   in
   let bitmap = Bitmap.create ~width:w ~height:h in
   let context = Context.create bitmap in
-  let black = solid `b in
-  let alt_fill = bayer_exn ~size:16 ~white_frac:0.79 in
-  let moon_dark_fill = bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
-  let day_land_fill = bayer_exn ~size:16 ~white_frac:(254. /. 256.) in
-  let land_fill =
-    match is_night with
-    | true -> alt_fill
-    | false -> day_land_fill
-  and geo_stroke = Stroke.solid `b 8 in
-  rect context ~fill:(solid base_color) (0, 0) (w, h);
+  let geo_stroke = Stroke.solid `b 8 in
+  rect context ~fill:(solid background_color) (0, 0) (w, h);
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let maximum_citibike_count_width, _ =
@@ -499,12 +577,12 @@ let draw ~font draw_inputs =
   let map_faded_top = map_top - fade_out_height in
   let north_fade fill =
     fade_to
-      ~color:base_color
+      ~color:background_color
       ~color_frac:(fun (_, y) ->
         1. -. (Float.of_int (y - map_faded_top) /. Float.of_int fade_out_height))
       fill
   in
-  let subway_casing = Stroke.create (north_fade (solid `w)) 12 in
+  let subway_casing = Stroke.create (north_fade (solid background_color)) 12 in
   let subway_stroke fill = Stroke.create ~casing:subway_casing fill 8 in
   let subway_stroke_safe_padding = Stroke.safe_padding (subway_stroke black) in
   let manhattan_corner_radius = 20 in
@@ -563,8 +641,8 @@ let draw ~font draw_inputs =
     let wave_x = (x + (y / 12 % 2 * 12)) % 24 in
     let distance_from_center = Int.abs (wave_x - 12) in
     match y % 12 = 5 - (distance_from_center * distance_from_center / 48) with
-    | true -> inverse_base_color
-    | false -> base_color
+    | true -> inverse_background_color
+    | false -> background_color
   in
   let faded_water_fill = north_fade water_fill in
   let sun_moon_radius = 69 in
@@ -591,34 +669,7 @@ let draw ~font draw_inputs =
   let sun_moon_center =
     Float.iround_nearest_exn sun_moon_x, Float.iround_nearest_exn sun_moon_y
   in
-  let sun_moon_center_x, sun_moon_center_y = sun_moon_center in
-  let temperature_text = fahrenheit_text weather.current_temperature_celsius
-  and low_high_text =
-    [ "l" ^ fahrenheit_text weather.low_temperature_celsius
-    ; "h" ^ fahrenheit_text weather.high_temperature_celsius
-    ]
-    |> String.concat ~sep:"  "
-  and temperature_size = 70.
-  and text_spacing = 4 in
-  let rendered_temperature = Font.render_text font temperature_text ~size:temperature_size
-  and rendered_low_high = Font.render_text font low_high_text ~size:status_text_size
-  and rendered_uv =
-    Option.bind weather.maximum_uv_index ~f:(fun uv ->
-      match Float.compare uv 6. > 0 with
-      | false -> None
-      | true ->
-        let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (text, Font.render_text font text ~size:status_text_size))
-  in
-  let uv_height =
-    Option.value_map rendered_uv ~default:0 ~f:(fun (_, rendered_uv) ->
-      text_spacing + rendered_uv.height)
-  in
-  let text_top =
-    sun_moon_center_y
-    - ((rendered_temperature.height + text_spacing + rendered_low_high.height + uv_height)
-       / 2)
-  in
+  let sun_moon_center_x = fst sun_moon_center in
   rect context ~fill:faded_water_fill (0, map_faded_top) (w, h);
   rounded_polygon
     context
@@ -734,16 +785,19 @@ let draw ~font draw_inputs =
     fulton_status;
   draw_sun_moon
     context
-    ~light_fill:alt_fill
+    ~light_fill:(light_fill ?offset:None)
     ~dark_fill:moon_dark_fill
     ~is_night
-    ~moon_phase:weather.moon_phase
+    ~weather
+    ~font
+    ~text_fill:black
+    ~status_text_size
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
   text
     context
     ~font
-    ~fill:alt_fill
+    ~fill:device_status_text_fill
     ~origin_x:(status_text_padding + rendered_voltage.origin_x)
     ~baseline_y:status_text_baseline
     ~size:status_text_size
@@ -751,7 +805,7 @@ let draw ~font draw_inputs =
   text
     context
     ~font
-    ~fill:alt_fill
+    ~fill:device_status_text_fill
     ~origin_x:
       (w - status_text_padding - rendered_updated.width + rendered_updated.origin_x)
     ~baseline_y:status_text_baseline
@@ -760,48 +814,10 @@ let draw ~font draw_inputs =
   Option.iter message ~f:(fun message ->
     blit_rendered_text
       context
-      ~fill:(solid inverse_base_color)
+      ~fill:(solid inverse_background_color)
       ~baseline_y:status_text_baseline
       ~origin_x:(((w - message.width) / 2) + message.origin_x)
       message);
-  draw_centered_text
-    context
-    ~font
-    ~fill:black
-    ~size:temperature_size
-    ~baseline_y:(text_top + rendered_temperature.baseline_y)
-    ~left:(sun_moon_center_x - sun_moon_radius)
-    ~right:(sun_moon_center_x + sun_moon_radius)
-    temperature_text;
-  draw_centered_text
-    context
-    ~font
-    ~fill:black
-    ~size:status_text_size
-    ~baseline_y:
-      (text_top
-       + rendered_temperature.height
-       + text_spacing
-       + rendered_low_high.baseline_y)
-    ~left:(sun_moon_center_x - sun_moon_radius)
-    ~right:(sun_moon_center_x + sun_moon_radius)
-    low_high_text;
-  Option.iter rendered_uv ~f:(fun (uv_text, rendered_uv) ->
-    draw_centered_text
-      context
-      ~font
-      ~fill:black
-      ~size:status_text_size
-      ~baseline_y:
-        (text_top
-         + rendered_temperature.height
-         + text_spacing
-         + rendered_low_high.height
-         + text_spacing
-         + rendered_uv.baseline_y)
-      ~left:(sun_moon_center_x - sun_moon_radius)
-      ~right:(sun_moon_center_x + sun_moon_radius)
-      uv_text);
   let farther_wall_x, sun_moon_near_side_x =
     match sun_moon_center_x < w / 2 with
     | true -> w, sun_moon_center_x + sun_moon_radius
@@ -817,7 +833,7 @@ let draw ~font draw_inputs =
       Some
         (draw_cloud
            context
-           ~fill:alt_fill
+           ~fill:cloud_fill
            ~graph_style
            ~padding:base_padding
            ~center_x:cloud_center_x
@@ -897,8 +913,8 @@ let draw ~font draw_inputs =
      rounded_polygon
        context
        ~radius:6
-       ~fill:(solid base_color)
-       ~stroke:(Stroke.solid inverse_base_color 1)
+       ~fill:(solid background_color)
+       ~stroke:(Stroke.solid inverse_background_color 1)
        [ aqi_left, aqi_top
        ; aqi_right, aqi_top
        ; aqi_right, aqi_bottom
@@ -906,7 +922,7 @@ let draw ~font draw_inputs =
        ];
      blit_rendered_text
        context
-       ~fill:(solid inverse_base_color)
+       ~fill:(solid inverse_background_color)
        ~origin_x:(((w - rendered_aqi.width) / 2) + rendered_aqi.origin_x)
        ~baseline_y:(aqi_top + aqi_padding + rendered_aqi.baseline_y)
        rendered_aqi
