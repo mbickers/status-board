@@ -171,7 +171,7 @@ let draw_cloud
     context
     ~radius:(height / 2)
     ~fill
-    [ left, base_y; right, base_y; right, top; left, top ];
+    [ left, base_y; right + 4, base_y; right + 4, top; left, top ];
   List.iter
     [ left + padding, height / 3, padding
     ; center_x - (height / 3), height * 3 / 5, 0
