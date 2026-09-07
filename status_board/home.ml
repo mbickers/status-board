@@ -466,7 +466,7 @@ let draw
   let random = Random.State.make [| Time_ns.hash now |] in
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   let cloud_base_y = h / 3 in
-  let cloud_bounds =
+  let cloud_center =
     match weather.conditions with
     | Weather_info.Conditions.Not_cloudy -> None
     | Cloudy precipitation ->
@@ -479,7 +479,6 @@ let draw
            ~padding:base_padding
            ~center_x:cloud_center_x
            ~base_y:cloud_base_y
-           ~random
            precipitation)
   in
   let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
@@ -510,13 +509,9 @@ let draw
         in
         clears_center sun_moon_center
         &&
-        match cloud_bounds with
+        match cloud_center with
         | None -> true
-        | Some ((left, top), (right, bottom)) ->
-          x + offset_x + padding < left
-          || x - padding > right
-          || y + Int.max 0 offset_y + padding < top
-          || y + Int.min 0 offset_y - padding > bottom)
+        | Some center -> clears_center center)
     in
     let x = List.nth_exn positions (Random.State.int random (List.length positions)) in
     x, y

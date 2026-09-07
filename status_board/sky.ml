@@ -148,13 +148,9 @@ let draw_cloud
       ~padding
       ~center_x
       ~base_y
-      ~random
       (precipitation : Weather_info.Precipitation.t option)
   =
   let graph_height = 74 in
-  let min_diameter_frac, max_diameter_frac = 0.5, 0.7 in
-  let min_outer_angle, max_outer_angle = 0., Float.pi /. 2. in
-  let outer_diameter_frac = 0.5 in
   let graph_width = 150 in
   let open Drawing.O in
   let rain, snow, thunderstorm =
@@ -167,50 +163,28 @@ let draw_cloud
        | Rain_and_snow -> true, true, thunder)
   in
   let height = graph_height + (2 * padding) in
-  let rectangle_width = graph_width + (2 * padding) in
-  let rectangle_left = center_x - (rectangle_width / 2) in
-  let rectangle_right = rectangle_left + rectangle_width in
+  let width = graph_width + (4 * padding) + 2 in
+  let left = center_x - (width / 2) in
+  let right = left + width in
+  let top = base_y - height in
   rounded_polygon
     context
-    ~radius:25
+    ~radius:(height / 2)
     ~fill
-    ~round_corner:(fun index -> index >= 2)
-    [ rectangle_left, base_y
-    ; rectangle_right, base_y
-    ; rectangle_right, base_y - height
-    ; rectangle_left, base_y - height
-    ];
-  let circles =
-    List.concat_map
-      [ -1., rectangle_left; 1., rectangle_right ]
-      ~f:(fun (direction, side_x) ->
-        let diameter_frac =
-          Random.State.float_range random min_diameter_frac max_diameter_frac
-        in
-        let outer_angle =
-          Random.State.float_range random min_outer_angle max_outer_angle
-        in
-        let radius = Float.of_int height *. diameter_frac /. 2. in
-        let x = Float.of_int side_x in
-        let y = Float.of_int base_y -. radius in
-        let dx = direction *. Float.cos outer_angle in
-        let dy = -.Float.sin outer_angle in
-        let outer_radius = Float.of_int height *. outer_diameter_frac /. 2. in
-        [ x, y, radius; x +. (radius *. dx), y +. (radius *. dy), outer_radius ])
-    |> List.map ~f:(fun (x, y, radius) ->
-      ( Float.iround_nearest_exn x
-      , Float.iround_nearest_exn y
-      , Float.iround_nearest_exn radius ))
-  in
-  let left, right, top =
-    List.fold
-      circles
-      ~init:(rectangle_left, rectangle_right, base_y - height)
-      ~f:(fun (left, right, top) (x, y, radius) ->
-        circle context ~fill ~center:(x, y) ~radius;
-        Int.min left (x - radius), Int.max right (x + radius), Int.min top (y - radius))
-  in
-  let width = right - left in
+    [ left, base_y; right, base_y; right, top; left, top ];
+  List.iter
+    [ left + padding, height / 3, padding
+    ; center_x - (height / 3), height * 3 / 5, 0
+    ; center_x + (height * 4 / 9), height / 2, 0
+    ]
+    ~f:(fun (x, radius, offset_y) ->
+      let y = top + (radius / 2) + padding + offset_y in
+      circle context ~fill ~center:(x, y) ~radius);
+  circle
+    context
+    ~fill
+    ~center:(right - padding, base_y - (height / 3) - (2 * padding))
+    ~radius:(height / 3);
   Option.iter precipitation ~f:(fun precipitation ->
     let samples = precipitation.samples in
     match samples, List.last samples with
@@ -324,5 +298,5 @@ let draw_cloud
            ~stroke
            ~radius:snowflake_radius
            ~center:(center_x, top + snowflake_radius)));
-  (left, top), (right, base_y)
+  center_x, base_y - (height / 2)
 ;;

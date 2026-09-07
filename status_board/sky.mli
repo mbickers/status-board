@@ -21,6 +21,5 @@ val draw_cloud
   -> padding:int
   -> center_x:int
   -> base_y:int
-  -> random:Random.State.t
   -> Weather_info.Precipitation.t option
-  -> (int * int) * (int * int)
+  -> int * int
