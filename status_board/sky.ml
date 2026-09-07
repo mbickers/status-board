@@ -175,17 +175,21 @@ let draw_cloud
       let labeled_tick_extra_length =
         graph_style.Graph.Style.labeled_tick_length - graph_style.tick_length
       in
-      Graph.draw
+      let graph =
+        Graph.create
+          ~size:(graph_width, graph_height)
+          ~style:graph_style
+          ~x_ticks:(tick graph_starts_at :: tick graph_ends_at :: hourly_ticks)
+          ~y_ticks:
+            [ { position_frac = 0.5; label = Some "50%" }
+            ; { position_frac = 1.; label = Some "100%" }
+            ]
+          ~points
+      in
+      Element.draw
+        graph
         context
-        ~bottom_center:(center_x, base_y - padding - labeled_tick_extra_length)
-        ~size:(graph_width, graph_height)
-        ~style:graph_style
-        ~x_ticks:(tick graph_starts_at :: tick graph_ends_at :: hourly_ticks)
-        ~y_ticks:
-          [ { position_frac = 0.5; label = Some "50%" }
-          ; { position_frac = 1.; label = Some "100%" }
-          ]
-        ~points);
+        ((Center, center_x), (Bottom, base_y - padding - labeled_tick_extra_length)));
   let symbol_top = base_y + 12 in
   (match rain with
    | false -> ()

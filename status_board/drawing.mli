@@ -31,7 +31,6 @@ module Element : sig
 
   type t
 
-  (* Baseline is measured from the top and defaults to the element's height. *)
   val create
     :  ?baseline:int
     -> size:int * int
@@ -39,6 +38,7 @@ module Element : sig
     -> unit
     -> t
 
+  (* Elements may draw beyond their reported size (e.g. text halos). Size represents visual bounds for layout, not strict bounds on where we draw. *)
   val size : t -> int * int
   val draw : t -> Context.t -> Anchor.t -> unit
   val column : gap:int -> align:Horizontal_alignment.t -> t list -> t
@@ -137,15 +137,13 @@ module Graph : sig
       }
   end
 
-  val draw
-    :  Context.t
-    -> bottom_center:int * int
-    -> size:int * int
+  val create
+    :  size:int * int
     -> style:Style.t
     -> x_ticks:Tick.t list
     -> y_ticks:Tick.t list
     -> points:Point.t list
-    -> unit
+    -> Element.t
 end
 
 module O : sig
