@@ -4,8 +4,8 @@ open! Async
 val url_query_string : Status_board.Input.t -> string
 
 val respond
-  :  cache:Feeds.Cache.t
-  -> message:string option
+  :  path:[ `Exact of string ]
+  -> cache:Feeds.Cache.t
+  -> message_manager:Message_manager.t
   -> status_board:Status_board.t
-  -> Cohttp.Request.t
-  -> Cohttp_async.Server.response_action Deferred.t
+  -> Http.Handler.t

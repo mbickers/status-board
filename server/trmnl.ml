@@ -30,16 +30,16 @@ let unique_filename () =
 let respond_with_json response =
   match response with
   | Ok json ->
-    Http.respond_string
+    Http.string_response
       ~headers:
         (Cohttp.Header.of_list
            [ "content-type", "application/json"; "cache-control", "no-store" ])
       (Yojson.Safe.to_string json)
   | Error error ->
-    Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
+    Http.string_response ~status:`Internal_server_error (Error.to_string_hum error)
 ;;
 
-let respond ~base_url ~image_path ~refresh_interval ~body request =
+let respond ~path:(`Prefix path) ~image_path ~refresh_interval ~body request =
   let request_method = Cohttp.Request.meth request |> Cohttp.Code.string_of_method
   and request_url = Cohttp.Request.uri request |> Uri.to_string
   and headers = Cohttp.Request.headers request |> Cohttp.Header.to_list in
@@ -48,11 +48,9 @@ let respond ~base_url ~image_path ~refresh_interval ~body request =
       (request_method : string)
       (request_url : string)
       (headers : (string * string) list)];
-  let path =
-    request |> Cohttp.Request.uri |> Uri.path |> String.chop_suffix_if_exists ~suffix:"/"
-  in
+  let path = Http.request_path request |> String.chop_prefix ~prefix:path in
   match Cohttp.Request.meth request, path with
-  | `GET, path when String.equal path (base_url ^ "/setup") ->
+  | `GET, Some "/setup" ->
     respond_with_json
       (let%map.Or_error image_url = image_url_with_origin ~image_path ~request in
        `Assoc
@@ -62,7 +60,7 @@ let respond ~base_url ~image_path ~refresh_interval ~body request =
          ; "image_url", `String image_url
          ; "filename", `String (unique_filename ())
          ])
-  | `GET, path when String.equal path (base_url ^ "/display") ->
+  | `GET, Some "/display" ->
     respond_with_json
       (let%map.Or_error image_url = image_url_with_origin ~image_path ~request in
        let refresh_seconds =
@@ -83,9 +81,9 @@ let respond ~base_url ~image_path ~refresh_interval ~body request =
          ; "touchbar_mode", `String "tap"
          ; "update_firmware", `Bool false
          ])
-  | `POST, path when String.equal path (base_url ^ "/log") ->
+  | `POST, Some "/log" ->
     let%bind body = Cohttp_async.Body.to_string body in
     [%log.global.error "TRMNL firmware log" (body : string)];
-    Http.respond_string ""
-  | _ -> Http.respond_string ~status:`Not_found "Not found"
+    Http.string_response ""
+  | _ -> Http.string_response ~status:`Not_found "Not found"
 ;;

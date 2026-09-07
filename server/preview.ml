@@ -31,32 +31,42 @@ let page_html ~autoreload_script ~template ~image_path ~debug_preset ~debug_pres
   Or_error.try_with (fun () -> Mustache.render template template_data)
 ;;
 
-let respond ~autoreload_script ~image_path ~(status_board : Status_board.t) request =
-  let debug_preset =
-    Uri.get_query_param (Cohttp.Request.uri request) "preset"
-    |> Option.filter ~f:(Fn.non String.is_empty)
-  in
-  let image_path = image_path debug_preset in
-  match
-    let%bind.Or_error contents =
-      Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
-    in
-    let%bind.Or_error template =
-      Or_error.try_with (fun () -> Mustache.of_string contents)
-    in
-    page_html
+let respond
+      ~path:(`Exact _)
       ~autoreload_script
-      ~template
       ~image_path
-      ~debug_preset
-      ~debug_presets:status_board.debug_presets
-  with
-  | Ok html ->
-    Http.respond_string
-      ~headers:
-        (Cohttp.Header.of_list
-           [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
-      html
-  | Error error ->
-    Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
+      ~(status_board : Status_board.t)
+      ~body:_
+      request
+  =
+  match Cohttp.Request.meth request with
+  | `GET ->
+    let debug_preset =
+      Uri.get_query_param (Cohttp.Request.uri request) "preset"
+      |> Option.filter ~f:(Fn.non String.is_empty)
+    in
+    let image_path = image_path debug_preset in
+    (match
+       let%bind.Or_error contents =
+         Or_error.try_with (fun () -> In_channel.read_all "server/preview.html")
+       in
+       let%bind.Or_error template =
+         Or_error.try_with (fun () -> Mustache.of_string contents)
+       in
+       page_html
+         ~autoreload_script
+         ~template
+         ~image_path
+         ~debug_preset
+         ~debug_presets:status_board.debug_presets
+     with
+     | Ok html ->
+       Http.string_response
+         ~headers:
+           (Cohttp.Header.of_list
+              [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
+         html
+     | Error error ->
+       Http.string_response ~status:`Internal_server_error (Error.to_string_hum error))
+  | _ -> Http.string_response ~status:`Not_found "Not found"
 ;;

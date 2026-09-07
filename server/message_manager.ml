@@ -1,15 +1,19 @@
 open! Core
 open! Async
 
-type t =
+type message =
   { text : string
   ; written_at : Time_ns.Alternate_sexp.t
   }
 [@@deriving sexp]
 
-let read ~filename =
+type t = { filename : string }
+
+let create ~filename = { filename }
+
+let read t =
   let%bind contents =
-    Monitor.try_with ~extract_exn:true (fun () -> Reader.file_contents filename)
+    Monitor.try_with ~extract_exn:true (fun () -> Reader.file_contents t.filename)
   in
   match contents with
   | Error (Unix.Unix_error (Unix.Error.ENOENT, _, _)) -> return (Ok [])
@@ -17,11 +21,11 @@ let read ~filename =
   | Ok contents ->
     return
       (Or_error.try_with (fun () ->
-         Sexp.of_string_many contents |> List.rev_map ~f:t_of_sexp))
+         Sexp.of_string_many contents |> List.rev_map ~f:message_of_sexp))
 ;;
 
-let latest ~filename =
-  let%bind.Deferred.Or_error messages = read ~filename in
+let latest t =
+  let%bind.Deferred.Or_error messages = read t in
   return (Ok (List.hd messages |> Option.map ~f:(fun message -> message.text)))
 ;;
 
@@ -56,23 +60,23 @@ let page_html ~messages ~attempted ~error =
           ]))
 ;;
 
-let respond ~filename ~validate ~body request =
+let respond t ~path:(`Exact _) ~validate ~body request =
   let page ~status ~messages ~attempted ~error =
     match page_html ~messages ~attempted ~error with
     | Error error ->
-      Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
+      Http.string_response ~status:`Internal_server_error (Error.to_string_hum error)
     | Ok html ->
-      Http.respond_string
+      Http.string_response
         ~status
         ~headers:
           (Cohttp.Header.of_list
              [ "content-type", "text/html; charset=utf-8"; "cache-control", "no-store" ])
         html
   in
-  let%bind messages = read ~filename in
+  let%bind messages = read t in
   match messages with
   | Error error ->
-    Http.respond_string ~status:`Internal_server_error (Error.to_string_hum error)
+    Http.string_response ~status:`Internal_server_error (Error.to_string_hum error)
   | Ok messages ->
     (match Cohttp.Request.meth request with
      | `GET -> page ~status:`OK ~messages ~attempted:"" ~error:None
@@ -95,18 +99,18 @@ let respond ~filename ~validate ~body request =
           let message = { text = attempted; written_at = Time_ns.now () } in
           let written =
             Or_error.try_with (fun () ->
-              Out_channel.with_file filename ~append:true ~f:(fun output ->
+              Out_channel.with_file t.filename ~append:true ~f:(fun output ->
                 Out_channel.output_string
                   output
-                  (Sexp.to_string_mach (sexp_of_t message) ^ "\n")))
+                  (Sexp.to_string_mach (sexp_of_message message) ^ "\n")))
           in
           (match written with
            | Error error ->
-             Http.respond_string
+             Http.string_response
                ~status:`Internal_server_error
                (Error.to_string_hum error)
            | Ok () ->
-             Http.respond_string
+             Http.string_response
                ~status:`See_other
                ~headers:
                  (Cohttp.Header.init_with
@@ -114,7 +118,7 @@ let respond ~filename ~validate ~body request =
                     (Uri.path (Cohttp.Request.uri request)))
                ""))
      | _ ->
-       Http.respond_string
+       Http.string_response
          ~status:`Method_not_allowed
          ~headers:(Cohttp.Header.init_with "allow" "GET, POST")
          "Method not allowed")

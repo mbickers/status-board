@@ -2,8 +2,8 @@ open! Core
 open! Async
 
 val respond
-  :  autoreload_script:string option
+  :  path:[ `Exact of string ]
+  -> autoreload_script:string option
   -> image_path:(string option -> string)
   -> status_board:Status_board.t
-  -> Cohttp.Request.t
-  -> Cohttp_async.Server.response_action Deferred.t
+  -> Http.Handler.t
