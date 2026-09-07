@@ -25,13 +25,14 @@ type t =
   ; low_temperature_celsius : float option
   ; high_temperature_celsius : float option
   ; maximum_uv_index : float option
+  ; us_aqi : float option
   ; conditions : Conditions.t
   ; moon_phase : float option
   ; sunrise : Time_ns.t
   ; sunset : Time_ns.t
   }
 
-let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) =
+let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) ~us_aqi =
   let forecast_ends_at = Time_ns.add now (Time_ns.Span.of_int_hr look_forward_hours) in
   let hourly_forecasts =
     List.filter forecast.hourly ~f:(fun hourly_forecast ->
@@ -129,6 +130,7 @@ let create ~look_forward_hours ~now ~(forecast : Feeds.Weather.Forecast.t) =
       Option.to_list forecast.current.uv_index
       @ List.filter_map hourly_forecasts ~f:(fun forecast -> forecast.uv_index)
       |> List.max_elt ~compare:Float.compare
+  ; us_aqi
   ; conditions
   ; moon_phase = daily.moon_phase
   ; sunrise
@@ -179,7 +181,7 @@ let%expect_test
           ]
       }
     in
-    match create ~look_forward_hours:8 ~now ~forecast with
+    match create ~look_forward_hours:8 ~now ~forecast ~us_aqi:None with
     | Error error -> print_s [%sexp (error : Error.t)]
     | Ok { conditions = Not_cloudy; _ } -> print_endline "clear"
     | Ok { conditions = Cloudy None; _ } -> print_endline "cloudy"

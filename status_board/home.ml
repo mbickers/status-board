@@ -884,6 +884,33 @@ let draw ~font draw_inputs =
      in
      draw_bird context ~wing_width ~center:(x, y);
      draw_bird context ~wing_width ~center:(x + spacing, y - 4));
+  (match weather.us_aqi with
+   | Some aqi when Float.(aqi > 100.) ->
+     let aqi = Int.to_string (Float.iround_nearest_exn aqi) in
+     let rendered_aqi = Font.render_text font [%string "AQI %{aqi}"] ~size:label_size in
+     let aqi_padding = 4 in
+     let aqi_width = 62 in
+     let aqi_left = (w - aqi_width) / 2 in
+     let aqi_right = aqi_left + aqi_width - 1 in
+     let aqi_bottom = map_faded_top - base_padding in
+     let aqi_top = aqi_bottom - rendered_aqi.height - (2 * aqi_padding) in
+     rounded_polygon
+       context
+       ~radius:6
+       ~fill:(solid base_color)
+       ~stroke:(Stroke.solid inverse_base_color 1)
+       [ aqi_left, aqi_top
+       ; aqi_right, aqi_top
+       ; aqi_right, aqi_bottom
+       ; aqi_left, aqi_bottom
+       ];
+     blit_rendered_text
+       context
+       ~fill:(solid inverse_base_color)
+       ~origin_x:(((w - rendered_aqi.width) / 2) + rendered_aqi.origin_x)
+       ~baseline_y:(aqi_top + aqi_padding + rendered_aqi.baseline_y)
+       rendered_aqi
+   | Some _ | None -> ());
   Ok bitmap
 ;;
 
@@ -944,12 +971,17 @@ let live_draw_inputs cache ~device_status ~message ~now =
     (let%bind.Or_error citibike_stations =
        Feeds.Latest_result.latest_success citibike_result
        |> Or_error.map ~f:(fun completed -> completed.value)
-     and forecast =
+     and forecast, air_quality =
        Feeds.Latest_result.latest_success weather_result
-       |> Or_error.map ~f:(fun completed -> fst completed.value)
+       |> Or_error.map ~f:(fun completed -> completed.value)
      and mta_subway_status = mta_subway_status_result in
      let find_station = Map.find_or_error citibike_stations in
-     let%map.Or_error weather = Weather_info.create ~look_forward_hours:8 ~now ~forecast
+     let%map.Or_error weather =
+       Weather_info.create
+         ~look_forward_hours:8
+         ~now
+         ~forecast
+         ~us_aqi:air_quality.current.us_aqi
      and bridge_status =
        find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
        |> Or_error.map ~f:Citibike_status.create
@@ -1053,6 +1085,7 @@ let render input cache ~message =
            ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
            ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
            ; maximum_uv_index = Some 10.
+           ; us_aqi = Some 499.
            ; conditions = Weather_info.Conditions.Not_cloudy
            ; moon_phase = Some 0.7
            ; sunrise =
@@ -1129,7 +1162,9 @@ let render input cache ~message =
                ]
            }
          in
-         let weather = Weather_info.create ~look_forward_hours:8 ~now ~forecast in
+         let weather =
+           Weather_info.create ~look_forward_hours:8 ~now ~forecast ~us_aqi:(Some 123.)
+         in
          return
            (Or_error.map weather ~f:(fun weather ->
               preset_draw_inputs ~font ~message ~now ~weather))
@@ -1139,6 +1174,7 @@ let render input cache ~message =
            ; low_temperature_celsius = None
            ; high_temperature_celsius = None
            ; maximum_uv_index = None
+           ; us_aqi = None
            ; conditions = Weather_info.Conditions.Not_cloudy
            ; moon_phase = None
            ; sunrise =

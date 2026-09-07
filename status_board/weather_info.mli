@@ -25,6 +25,7 @@ type t =
   ; low_temperature_celsius : float option
   ; high_temperature_celsius : float option
   ; maximum_uv_index : float option
+  ; us_aqi : float option
   ; conditions : Conditions.t
   ; moon_phase : float option
   ; sunrise : Time_ns.t
@@ -35,4 +36,5 @@ val create
   :  look_forward_hours:int
   -> now:Time_ns.t
   -> forecast:Feeds.Weather.Forecast.t
+  -> us_aqi:float option
   -> t Or_error.t
