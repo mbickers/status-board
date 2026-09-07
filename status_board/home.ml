@@ -419,6 +419,27 @@ let draw
     context
     ( (Left, parking_grid_right_column)
     , (Top, parking_grid_top + parking_status_height + base_padding) );
+  let random = Random.State.make [| Time_ns.hash now |] in
+  let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
+    let padding = radius + 2 in
+    let left = screen_edge_padding + padding in
+    let right = w - screen_edge_padding - offset_x - padding in
+    let top = status_text_baseline + screen_edge_padding + padding - Int.min 0 offset_y in
+    let bottom = map_faded_top - screen_edge_padding - padding in
+    let height = (bottom - top + 1) / count in
+    let y = top + (index * height) + Random.State.int random height in
+    let x = left + Random.State.int random (right - left + 1) in
+    x, y
+  in
+  (match is_night with
+   | true ->
+     let radius = 3 in
+     let stroke = Stroke.solid `w 2 in
+     let count = 10 in
+     List.iter (List.range 0 count) ~f:(fun index ->
+       let center = choose_sky_spot ~radius ~offset:(0, 0) ~index ~count in
+       star context ~stroke ~radius ~center)
+   | false -> ());
   Sky.draw_sun_moon
     context
     ~light_fill:(light_fill ?offset:None)
@@ -445,67 +466,22 @@ let draw
     | true -> w, sun_moon_center_x + sun_moon_radius
     | false -> 0, sun_moon_center_x - sun_moon_radius
   in
-  let random = Random.State.make [| Time_ns.hash now |] in
   let cloud_center_x = (sun_moon_near_side_x + farther_wall_x) / 2 in
   let cloud_base_y = h / 3 in
-  let cloud_center =
-    match weather.conditions with
-    | Weather_info.Conditions.Not_cloudy -> None
-    | Cloudy precipitation ->
-      Some
-        (Sky.draw_cloud
-           context
-           ~fill:cloud_fill
-           ~graph_style
-           ~zone:display_zone
-           ~padding:base_padding
-           ~center_x:cloud_center_x
-           ~base_y:cloud_base_y
-           precipitation)
-  in
-  let choose_sky_spot ~radius ~offset:(offset_x, offset_y) ~index ~count =
-    let padding = radius + 2 in
-    let left = screen_edge_padding + padding in
-    let right = w - screen_edge_padding - offset_x - padding in
-    let top = status_text_baseline + screen_edge_padding + padding - Int.min 0 offset_y in
-    let bottom = map_faded_top - screen_edge_padding - padding in
-    let height = (bottom - top + 1) / count in
-    let y = top + (index * height) + Random.State.int random height in
-    let positions =
-      List.range left (right + 1)
-      |> List.filter ~f:(fun x ->
-        let clears_center (center_x, center_y) =
-          let dx =
-            Int.max
-              0
-              (Int.max (x - padding - center_x) (center_x - x - offset_x - padding))
-          in
-          let dy =
-            Int.max
-              0
-              (Int.max
-                 (y + Int.min 0 offset_y - padding - center_y)
-                 (center_y - y - Int.max 0 offset_y - padding))
-          in
-          (dx * dx) + (dy * dy) >= 70 * 70
-        in
-        clears_center sun_moon_center
-        &&
-        match cloud_center with
-        | None -> true
-        | Some center -> clears_center center)
-    in
-    let x = List.nth_exn positions (Random.State.int random (List.length positions)) in
-    x, y
-  in
+  (match weather.conditions with
+   | Weather_info.Conditions.Not_cloudy -> ()
+   | Cloudy precipitation ->
+     Sky.draw_cloud
+       context
+       ~fill:cloud_fill
+       ~graph_style
+       ~zone:display_zone
+       ~padding:base_padding
+       ~center_x:cloud_center_x
+       ~base_y:cloud_base_y
+       precipitation);
   (match is_night with
-   | true ->
-     let radius = 3 in
-     let stroke = Stroke.solid `w 2 in
-     let count = 10 in
-     List.iter (List.range 0 count) ~f:(fun index ->
-       let center = choose_sky_spot ~radius ~offset:(0, 0) ~index ~count in
-       star context ~stroke ~radius ~center)
+   | true -> ()
    | false ->
      let wing_width = 10 in
      let spacing = 28 in

@@ -22,4 +22,4 @@ val draw_cloud
   -> center_x:int
   -> base_y:int
   -> Weather_info.Precipitation.t option
-  -> int * int
+  -> unit

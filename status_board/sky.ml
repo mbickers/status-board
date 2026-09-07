@@ -237,21 +237,20 @@ let draw_cloud
        ; center_x - waist_half_width, symbol_top + lower_waist_y
        ; center_x - half_width, symbol_top + lower_waist_y
        ]);
-  (match snow with
-   | false -> ()
-   | true ->
-     let snowflake_radius = 17 in
-     let stroke = Stroke.create fill 4 in
-     List.iter
-       [ left + (width / 6), base_y + 30
-       ; left + (5 * width / 12), base_y + 10
-       ; left + (4 * width / 5), base_y + 15
-       ]
-       ~f:(fun (center_x, top) ->
-         star
-           context
-           ~stroke
-           ~radius:snowflake_radius
-           ~center:(center_x, top + snowflake_radius)));
-  center_x, base_y - (height / 2)
+  match snow with
+  | false -> ()
+  | true ->
+    let snowflake_radius = 17 in
+    let stroke = Stroke.create fill 4 in
+    List.iter
+      [ left + (width / 6), base_y + 30
+      ; left + (5 * width / 12), base_y + 10
+      ; left + (4 * width / 5), base_y + 15
+      ]
+      ~f:(fun (center_x, top) ->
+        star
+          context
+          ~stroke
+          ~radius:snowflake_radius
+          ~center:(center_x, top + snowflake_radius))
 ;;
