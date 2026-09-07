@@ -1,7 +1,18 @@
 open! Core
 open! Async
 
-let url_query_string input =
+type t =
+  { path : string
+  ; cache : Feeds.Cache.t
+  ; message_manager : Message_manager.t
+  ; status_board : Status_board.t
+  }
+
+let create ~path ~cache ~message_manager ~status_board =
+  { path; cache; message_manager; status_board }
+;;
+
+let image_path t input =
   let request_id = Time_ns.now () |> Time_ns.to_int63_ns_since_epoch |> Int63.to_string in
   let query =
     match input with
@@ -17,17 +28,11 @@ let url_query_string input =
       :: Option.value_map debug_preset ~default:[] ~f:(fun preset ->
         [ "preset", [ preset ] ])
   in
-  Uri.encoded_of_query (("request", [ request_id ]) :: query)
+  let query = Uri.encoded_of_query (("request", [ request_id ]) :: query) in
+  [%string "%{t.path}?%{query}"]
 ;;
 
-let respond
-      ~path:(`Exact _)
-      ~cache
-      ~message_manager
-      ~(status_board : Status_board.t)
-      ~body:_
-      request
-  =
+let respond t ~path:(`Exact _) ~body:_ request =
   match Cohttp.Request.meth request with
   | `GET ->
     let input =
@@ -53,8 +58,8 @@ let respond
     let%bind rendered =
       match input with
       | Ok input ->
-        let%bind.Deferred.Or_error message = Message_manager.latest message_manager in
-        status_board.render input cache ~message
+        let%bind.Deferred.Or_error message = Message_manager.latest t.message_manager in
+        t.status_board.render input t.cache ~message
       | Error error -> return (Error error)
     in
     (match rendered with

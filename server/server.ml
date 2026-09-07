@@ -29,13 +29,13 @@ let run ~cache_path ~port ~autoreload =
         :: routes
       , Some autoreload )
   in
-  let routes, image_path =
+  let routes, renderer =
     let path = "/image/home" in
-    ( Http.Handler.Route.create
-        (`Exact path)
-        ~f:(Renderer.respond ~cache ~message_manager ~status_board:home_status_board)
-      :: routes
-    , fun input -> [%string "%{path}?%{Renderer.url_query_string input}"] )
+    let renderer =
+      Renderer.create ~path ~cache ~message_manager ~status_board:home_status_board
+    in
+    ( Http.Handler.Route.create (`Exact path) ~f:(Renderer.respond renderer) :: routes
+    , renderer )
   in
   let routes =
     [ Http.Handler.Route.create
@@ -43,7 +43,7 @@ let run ~cache_path ~port ~autoreload =
         ~f:
           (Preview.respond
              ~autoreload_script:(Option.map autoreload ~f:Autoreload_on_restart.script)
-             ~image_path:(fun preset -> image_path (Preview preset))
+             ~image_path:(fun preset -> Renderer.image_path renderer (Preview preset))
              ~status_board:home_status_board)
     ; Http.Handler.Route.create
         (`Exact "/messages")
@@ -55,7 +55,8 @@ let run ~cache_path ~port ~autoreload =
         (`Prefix "/api")
         ~f:
           (Trmnl.respond
-             ~image_path:(fun device_status -> image_path (Device device_status))
+             ~image_path:(fun device_status ->
+               Renderer.image_path renderer (Device device_status))
              ~refresh_interval:home_status_board.refresh_interval)
     ; Http.Handler.Route.create
         (`Exact "/style.css")
