@@ -1,0 +1,54 @@
+open! Core
+
+module Line : sig
+  type t =
+    | L
+    | M
+    | J_and_Z_but_call_it_J
+
+  val fill : t -> Drawing.Fill.t
+end
+
+val stroke : casing_fill:Drawing.Fill.t -> Drawing.Fill.t -> Drawing.Stroke.t
+val stroke_safe_padding : int
+
+module Status : sig
+  module Row : sig
+    type t =
+      { line : Line.t
+      ; westbound_minutes : int list
+      ; eastbound_minutes : int list
+      }
+  end
+
+  type t =
+    { rows : Row.t list
+    ; has_alert : bool
+    }
+
+  module Selection : sig
+    type t =
+      { line : Line.t
+      ; minimum_minutes : int
+      ; westbound_mta_direction : Feeds.Mta_subway.Direction.t
+      }
+  end
+
+  val create
+    :  Feeds.Mta_subway.Status.t
+    -> now:Time_ns.t
+    -> station_id:string
+    -> rows:Selection.t list
+    -> t Or_error.t
+
+  val width : Status_box.Style.t -> int
+  val height : Status_box.Style.t -> t -> int
+
+  val draw
+    :  Drawing.Context.t
+    -> anchor:Drawing.Anchor.t
+    -> style:Status_box.Style.t
+    -> label:string
+    -> t
+    -> unit
+end

@@ -74,14 +74,34 @@ let draw_box context ~anchor ~style ~label ~box_size t ~is_enabled ~f =
     ~f
 ;;
 
-let draw_availability context ~anchor ~style ~label ~box_size t =
+let parking_size style =
+  let count_width, _ =
+    Font.max_width
+      (Status_box.Style.font style)
+      [ `Number (0, 99) ]
+      ~size:(Status_box.Style.primary_font_size style)
+  in
+  ( Float.iround_up_exn count_width + (2 * Status_box.Style.base_padding style)
+  , Float.iround_up_exn (Status_box.Style.primary_font_size style)
+    + Status_box.Style.baseline_padding style )
+;;
+
+let availability_size style =
+  let parking_width, parking_height = parking_size style in
+  ( (2 * parking_width)
+    - (2 * Status_box.Style.base_padding style)
+    + Status_box.Style.horizontal_padding_between_text style
+  , parking_height + 10 )
+;;
+
+let draw_availability context ~anchor ~style ~label t =
   let font = Status_box.Style.font style in
   draw_box
     context
     ~anchor
     ~style
     ~label
-    ~box_size
+    ~box_size:(availability_size style)
     t
     ~is_enabled:
       (match t.availability with
@@ -142,14 +162,14 @@ let draw_availability context ~anchor ~style ~label ~box_size t =
           "e")
 ;;
 
-let draw_parking context ~anchor ~style ~label ~box_size t =
+let draw_parking context ~anchor ~style ~label t =
   let font = Status_box.Style.font style in
   draw_box
     context
     ~anchor
     ~style
     ~label
-    ~box_size
+    ~box_size:(parking_size style)
     t
     ~is_enabled:
       (match t.parking with

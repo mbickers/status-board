@@ -22,13 +22,14 @@ type t =
   }
 
 val create : Feeds.Citibike.Station.t -> t
+val availability_size : Status_box.Style.t -> int * int
+val parking_size : Status_box.Style.t -> int * int
 
 val draw_availability
   :  Drawing.Context.t
   -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
   -> label:string
-  -> box_size:int * int
   -> t
   -> unit
 
@@ -37,6 +38,5 @@ val draw_parking
   -> anchor:Drawing.Anchor.t
   -> style:Status_box.Style.t
   -> label:string
-  -> box_size:int * int
   -> t
   -> unit
