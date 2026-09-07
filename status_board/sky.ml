@@ -124,18 +124,14 @@ let draw_cloud
     ~fill
     [ left, base_y; right + 4, base_y; right + 4, top; left, top ];
   List.iter
-    [ left + padding, height / 3, padding
+    [ left + (3 * padding / 2), height / 3, height - (2 * height / 3)
     ; center_x - (height / 3), height * 3 / 5, 0
     ; center_x + (height * 4 / 9), height / 2, 0
+    ; right - padding, height / 3, height - (height / 3) - (height / 3 / 2) - (3 * padding)
     ]
     ~f:(fun (x, radius, offset_y) ->
       let y = top + (radius / 2) + padding + offset_y in
       circle context ~fill ~center:(x, y) ~radius);
-  circle
-    context
-    ~fill
-    ~center:(right - padding, base_y - (height / 3) - (2 * padding))
-    ~radius:(height / 3);
   Option.iter precipitation ~f:(fun precipitation ->
     let samples = precipitation.samples in
     match samples, List.last samples with
