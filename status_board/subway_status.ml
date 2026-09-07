@@ -77,7 +77,7 @@ let draw_bullet
     done
   done;
   let rendered_text = Font.render_text font label ~size:font_size in
-  Drawing.text
+  Drawing.Text.text
     context
     ~font
     ~fill:text_fill
@@ -176,13 +176,17 @@ let draw_directions context ~(layout : Layout.t) =
       | `Right -> center_x + 9, center_x - 9, center_x + 3
     in
     let tip = Float.of_int tip_x, layout.arrow_center_y in
-    Drawing.draw_line context ~stroke (Float.of_int tail_x, layout.arrow_center_y) tip;
-    Drawing.draw_line
+    Drawing.Shapes.draw_line
+      context
+      ~stroke
+      (Float.of_int tail_x, layout.arrow_center_y)
+      tip;
+    Drawing.Shapes.draw_line
       context
       ~stroke
       tip
       (Float.of_int arrowhead_x, layout.arrow_center_y -. layout.arrow_half_height);
-    Drawing.draw_line
+    Drawing.Shapes.draw_line
       context
       ~stroke
       tip
@@ -211,7 +215,7 @@ let draw_row
   and text_left, westbound_right, eastbound_left, text_right = columns layout in
   let draw_centered_text text ~left ~right =
     let rendered_text = Font.render_text font text ~size:layout.departure_font_size in
-    Drawing.text
+    Drawing.Text.text
       context
       ~font
       ~fill:(Drawing.Fill.solid `b)
@@ -269,7 +273,7 @@ let draw context ~anchor ~style ~label ~display_route_text ~route_fill { rows; h
     let size = 30. in
     let alert_text = "!!" in
     let rendered = Font.render_text font alert_text ~size in
-    Drawing.text
+    Drawing.Text.text
       ~halo:(3, Drawing.Fill.solid `w)
       context
       ~font

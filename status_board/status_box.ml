@@ -74,7 +74,7 @@ let draw
   let font = Style.font style
   and label_size = Style.label_size style in
   let rendered_label = Font.render_text font label ~size:label_size in
-  Drawing.blit_rendered_text
+  Drawing.Text.blit_rendered_text
     ~halo:(3, Drawing.Fill.solid `w)
     context
     ~fill:(Drawing.Fill.solid `b)

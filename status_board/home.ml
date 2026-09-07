@@ -22,7 +22,7 @@ let render_message message =
 
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
   let rendered_text = Font.render_text font text ~size in
-  Drawing.blit_rendered_text
+  Drawing.Text.blit_rendered_text
     context
     ~fill
     ~origin_x:(left + ((right - left - rendered_text.width) / 2) + rendered_text.origin_x)
@@ -147,7 +147,7 @@ let draw_bird context ~wing_width ~center:(x, y) =
   let wing_width = Float.of_int wing_width in
   let stroke = Drawing.Stroke.solid `b 2 in
   List.iter [ -1.; 1. ] ~f:(fun direction ->
-    Drawing.draw_quadratic_curve
+    Drawing.Shapes.draw_quadratic_curve
       context
       ~stroke
       ( (x, y)
@@ -390,7 +390,7 @@ let draw ~font draw_inputs =
       ~font
       ~base_padding
       ~primary_font_size:40.
-      ~error_fill:(Fill.bayer_exn ~white_frac:0.7)
+      ~error_fill:(bayer_exn ~white_frac:0.7)
   in
   let w = 800
   and h = 480 in
@@ -425,16 +425,16 @@ let draw ~font draw_inputs =
   in
   let bitmap = Bitmap.create ~width:w ~height:h in
   let context = Context.create bitmap in
-  let black = Fill.solid `b in
-  let alt_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:0.79 in
-  let moon_dark_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
-  let day_land_fill : Fill.t = Fill.bayer_exn ~size:16 ~white_frac:(254. /. 256.) in
+  let black = solid `b in
+  let alt_fill = bayer_exn ~size:16 ~white_frac:0.79 in
+  let moon_dark_fill = bayer_exn ~size:16 ~white_frac:(3. /. 8.) in
+  let day_land_fill = bayer_exn ~size:16 ~white_frac:(254. /. 256.) in
   let land_fill =
     match is_night with
     | true -> alt_fill
     | false -> day_land_fill
   and geo_stroke = Stroke.solid `b 8 in
-  rect context ~fill:(Fill.solid base_color) (0, 0) (w, h);
+  rect context ~fill:(solid base_color) (0, 0) (w, h);
   let manhattan_w = 220
   and manhattan_inset = 43 in
   let maximum_citibike_count_width, _ =
@@ -504,7 +504,7 @@ let draw ~font draw_inputs =
         1. -. (Float.of_int (y - map_faded_top) /. Float.of_int fade_out_height))
       fill
   in
-  let subway_casing = Stroke.create (north_fade (Fill.solid `w)) 12 in
+  let subway_casing = Stroke.create (north_fade (solid `w)) 12 in
   let subway_stroke fill = Stroke.create ~casing:subway_casing fill 8 in
   let subway_stroke_safe_padding = Stroke.safe_padding (subway_stroke black) in
   let manhattan_corner_radius = 20 in
@@ -760,7 +760,7 @@ let draw ~font draw_inputs =
   Option.iter message ~f:(fun message ->
     blit_rendered_text
       context
-      ~fill:(Fill.solid inverse_base_color)
+      ~fill:(solid inverse_base_color)
       ~baseline_y:status_text_baseline
       ~origin_x:(((w - message.width) / 2) + message.origin_x)
       message);

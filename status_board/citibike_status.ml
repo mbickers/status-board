@@ -48,7 +48,7 @@ let create (station : Feeds.Citibike.Station.t) =
 
 let draw_centered_text context ~font ~fill ~size ~baseline_y ~left ~right text =
   let rendered_text = Font.render_text font text ~size in
-  Drawing.text
+  Drawing.Text.text
     context
     ~font
     ~fill

@@ -37,8 +37,6 @@ module Stroke : sig
   val safe_padding : t -> int
 end
 
-val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
-
 module Path_resolver_step : sig
   type t =
     | Point of int * int
@@ -47,47 +45,57 @@ module Path_resolver_step : sig
   val resolve : t list -> (int * int) list
 end
 
-val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
-val circle : Context.t -> fill:Fill.t -> center:int * int -> radius:int -> unit
-val star : Context.t -> stroke:Stroke.t -> radius:int -> center:int * int -> unit
-val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
+module Shapes : sig
+  val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
+  val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
+  val circle : Context.t -> fill:Fill.t -> center:int * int -> radius:int -> unit
+  val star : Context.t -> stroke:Stroke.t -> radius:int -> center:int * int -> unit
+  val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
 
-val draw_quadratic_curve
-  :  Context.t
-  -> stroke:Stroke.t
-  -> (float * float) * (float * float) * (float * float)
-  -> unit
+  val draw_quadratic_curve
+    :  Context.t
+    -> stroke:Stroke.t
+    -> (float * float) * (float * float) * (float * float)
+    -> unit
 
-val rounded_path : Context.t -> radius:int -> stroke:Stroke.t -> (int * int) list -> unit
+  val rounded_path
+    :  Context.t
+    -> radius:int
+    -> stroke:Stroke.t
+    -> (int * int) list
+    -> unit
 
-val rounded_polygon
-  :  Context.t
-  -> radius:int
-  -> fill:Fill.t
-  -> ?stroke:Stroke.t
-  -> ?round_corner:(int -> bool)
-  -> (int * int) list
-  -> unit
+  val rounded_polygon
+    :  Context.t
+    -> radius:int
+    -> fill:Fill.t
+    -> ?stroke:Stroke.t
+    -> ?round_corner:(int -> bool)
+    -> (int * int) list
+    -> unit
+end
 
-val blit_rendered_text
-  :  ?halo:int * Fill.t
-  -> Context.t
-  -> fill:Fill.t
-  -> origin_x:int
-  -> baseline_y:int
-  -> Font.Rendered_text.t
-  -> unit
+module Text : sig
+  val blit_rendered_text
+    :  ?halo:int * Fill.t
+    -> Context.t
+    -> fill:Fill.t
+    -> origin_x:int
+    -> baseline_y:int
+    -> Font.Rendered_text.t
+    -> unit
 
-val text
-  :  ?halo:int * Fill.t
-  -> Context.t
-  -> font:Font.t
-  -> fill:Fill.t
-  -> origin_x:int
-  -> baseline_y:int
-  -> size:float
-  -> string
-  -> unit
+  val text
+    :  ?halo:int * Fill.t
+    -> Context.t
+    -> font:Font.t
+    -> fill:Fill.t
+    -> origin_x:int
+    -> baseline_y:int
+    -> size:float
+    -> string
+    -> unit
+end
 
 module Graph : sig
   module Tick : sig
@@ -131,59 +139,9 @@ module O : sig
   module Graph = Graph
   module Context = Context
   module Anchor = Anchor
-  module Fill = Fill
   module Path_resolver_step = Path_resolver_step
   module Stroke = Stroke
-
-  val solid : [ `b | `w ] -> Fill.t
-  val invert : Fill.t -> Fill.t
-  val bayer_exn : ?size:int -> ?offset:int * int -> white_frac:float -> Fill.t
-  val fade_to : Fill.t -> color:[ `b | `w ] -> color_frac:(int * int -> float) -> Fill.t
-  val rect : Context.t -> fill:Fill.t -> int * int -> int * int -> unit
-  val polygon : Context.t -> fill:Fill.t -> (int * int) list -> unit
-  val circle : Context.t -> fill:Fill.t -> center:int * int -> radius:int -> unit
-  val star : Context.t -> stroke:Stroke.t -> radius:int -> center:int * int -> unit
-  val draw_line : Context.t -> stroke:Stroke.t -> float * float -> float * float -> unit
-
-  val draw_quadratic_curve
-    :  Context.t
-    -> stroke:Stroke.t
-    -> (float * float) * (float * float) * (float * float)
-    -> unit
-
-  val rounded_path
-    :  Context.t
-    -> radius:int
-    -> stroke:Stroke.t
-    -> (int * int) list
-    -> unit
-
-  val rounded_polygon
-    :  Context.t
-    -> radius:int
-    -> fill:Fill.t
-    -> ?stroke:Stroke.t
-    -> ?round_corner:(int -> bool)
-    -> (int * int) list
-    -> unit
-
-  val blit_rendered_text
-    :  ?halo:int * Fill.t
-    -> Context.t
-    -> fill:Fill.t
-    -> origin_x:int
-    -> baseline_y:int
-    -> Font.Rendered_text.t
-    -> unit
-
-  val text
-    :  ?halo:int * Fill.t
-    -> Context.t
-    -> font:Font.t
-    -> fill:Fill.t
-    -> origin_x:int
-    -> baseline_y:int
-    -> size:float
-    -> string
-    -> unit
+  include module type of Fill with type t := Fill.t
+  include module type of Shapes
+  include module type of Text
 end
