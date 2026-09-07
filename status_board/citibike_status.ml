@@ -153,3 +153,23 @@ let parking ~style ~label t =
   in
   Status_box.create ~style ~label ~fill ~content ()
 ;;
+
+module Testing_data = struct
+  let dense_text ~widest_two_digit_number =
+    { availability =
+        Availability.Renting
+          { classic_bikes_available = widest_two_digit_number
+          ; electric_bikes_available = widest_two_digit_number
+          }
+    ; parking = Parking.Accepting_returns { docks_available = widest_two_digit_number }
+    ; bikes_available_frac = 2. /. 3.
+    }
+  ;;
+
+  let errors =
+    { availability = Availability.Not_renting
+    ; parking = Parking.Not_accepting_returns
+    ; bikes_available_frac = 0.
+    }
+  ;;
+end

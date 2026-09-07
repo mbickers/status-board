@@ -41,5 +41,10 @@ module Status : sig
     -> rows:Selection.t list
     -> t Or_error.t
 
+  module Testing_data : sig
+    val dense_text : widest_two_digit_number:int -> lines:Line.t list -> t
+    val errors : lines:Line.t list -> t
+  end
+
   val element : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
 end

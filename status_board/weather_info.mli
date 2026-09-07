@@ -38,3 +38,9 @@ val create
   -> forecast:Feeds.Weather.Forecast.t
   -> us_aqi:float option
   -> t Or_error.t
+
+module Testing_data : sig
+  val dense_text : now:Time_ns.t -> zone:Time_ns_unix.Zone.t -> t
+  val stormy : hour_start:Time_ns.t -> zone:Time_ns_unix.Zone.t -> t Or_error.t
+  val errors : now:Time_ns.t -> zone:Time_ns_unix.Zone.t -> t
+end

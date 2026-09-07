@@ -24,3 +24,8 @@ type t =
 val create : Feeds.Citibike.Station.t -> t
 val availability : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
 val parking : style:Status_box.Style.t -> label:string -> t -> Drawing.Element.t
+
+module Testing_data : sig
+  val dense_text : widest_two_digit_number:int -> t
+  val errors : t
+end

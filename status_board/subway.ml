@@ -50,6 +50,25 @@ module Status = struct
     ; has_alert : bool
     }
 
+  module Testing_data = struct
+    let dense_text ~widest_two_digit_number ~lines =
+      let minutes = List.init 3 ~f:(fun _ -> widest_two_digit_number) in
+      { rows =
+          List.map lines ~f:(fun line ->
+            { Row.line; westbound_minutes = minutes; eastbound_minutes = minutes })
+      ; has_alert = false
+      }
+    ;;
+
+    let errors ~lines =
+      { rows =
+          List.map lines ~f:(fun line ->
+            { Row.line; westbound_minutes = []; eastbound_minutes = [] })
+      ; has_alert = true
+      }
+    ;;
+  end
+
   module Selection = struct
     type t =
       { line : Line.t

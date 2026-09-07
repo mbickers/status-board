@@ -68,8 +68,6 @@ let day_night_phase weather ~at =
   is_night, elapsed_since start at_frac /. elapsed_since start finish
 ;;
 
-let celsius_of_fahrenheit fahrenheit = (fahrenheit -. 32.) *. 5. /. 9.
-
 let draw_bird context ~wing_width ~center:(x, y) =
   let x = Float.of_int x
   and y = Float.of_int y in
@@ -633,22 +631,14 @@ let preset_draw_inputs ~font ~message ~now ~weather =
   let _, widest_two_digit_number = Font.max_width font [ `Number (12, 99) ] ~size:20. in
   let widest_two_digit_number = Int.of_string widest_two_digit_number in
   let citibike_status =
-    { Citibike_status.availability =
-        Citibike_status.Availability.Renting
-          { classic_bikes_available = widest_two_digit_number
-          ; electric_bikes_available = widest_two_digit_number
-          }
-    ; parking = Accepting_returns { docks_available = widest_two_digit_number }
-    ; bikes_available_frac = 2. /. 3.
-    }
+    Citibike_status.Testing_data.dense_text ~widest_two_digit_number
   in
-  let row line =
-    let minutes = List.init 3 ~f:(fun _ -> widest_two_digit_number) in
-    { Subway.Status.Row.line; westbound_minutes = minutes; eastbound_minutes = minutes }
-  in
-  let bedford_status = { Subway.Status.rows = [ row L ]; has_alert = false }
+  let bedford_status =
+    Subway.Status.Testing_data.dense_text ~widest_two_digit_number ~lines:[ L ]
   and marcy_status =
-    { Subway.Status.rows = [ row J_and_Z_but_call_it_J; row M ]; has_alert = false }
+    Subway.Status.Testing_data.dense_text
+      ~widest_two_digit_number
+      ~lines:[ J_and_Z_but_call_it_J; M ]
   in
   { Draw_inputs.device_status = { battery_voltage = None }
   ; message
@@ -689,38 +679,7 @@ let render input cache ~message =
              ~ofday:(Time_ns.Ofday.create ~hr:22 ())
              ~zone:display_zone
          in
-         let weather =
-           { Weather_info.current_temperature_celsius = Some (celsius_of_fahrenheit 104.)
-           ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
-           ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
-           ; maximum_uv_index = Some 10.
-           ; us_aqi = Some 499.
-           ; conditions =
-               Weather_info.Conditions.Cloudy
-                 (Some
-                    { precipitation = { kind = Snow; thunder = false }
-                    ; samples =
-                        List.init 9 ~f:(fun hour ->
-                          { Weather_info.Precipitation.Sample.time =
-                              Time_ns.add now (Time_ns.Span.of_int_hr hour)
-                          ; probability_frac = Some 1.
-                          })
-                    })
-           ; moon_phase = Some 0.7
-           ; sunrise =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:6 ())
-                 ~zone:display_zone
-           ; sunset =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:20 ())
-                 ~zone:display_zone
-           }
-         in
+         let weather = Weather_info.Testing_data.dense_text ~now ~zone:display_zone in
          return
            (Ok (preset_draw_inputs ~font ~message:(Some max_width_message) ~now ~weather))
        | Day_stormy ->
@@ -732,93 +691,13 @@ let render input cache ~message =
              ~zone:display_zone
          in
          let now = Time_ns.add hour_start (Time_ns.Span.of_min 30.) in
-         let hourly =
-           List.init 10 ~f:(fun hour ->
-             let precipitation =
-               Some { Feeds.Weather.Precipitation.kind = Rain_and_snow; thunder = true }
-             in
-             let preceding_hour_precipitation_probability =
-               match hour with
-               | 3 -> None
-               | _ -> Some (100 - (Int.abs (4 - hour) * 20))
-             in
-             { Feeds.Weather.Hourly.time =
-                 Time_ns.add hour_start (Time_ns.Span.of_int_hr hour)
-             ; temperature_2m = Some (celsius_of_fahrenheit 32.)
-             ; preceding_hour_precipitation_probability
-             ; conditions = Some (Cloudy precipitation)
-             ; uv_index = None
-             })
-         in
-         let forecast =
-           { Feeds.Weather.Forecast.timezone = "America/New_York"
-           ; current =
-               { time = now
-               ; interval_seconds = 900
-               ; temperature_2m = Some (celsius_of_fahrenheit 32.)
-               ; conditions = None
-               ; uv_index = None
-               }
-           ; hourly
-           ; daily =
-               [ { date = Time_ns.to_date now ~zone:display_zone
-                 ; sunrise =
-                     Time_ns.occurrence
-                       `First_after_or_at
-                       now
-                       ~ofday:(Time_ns.Ofday.create ~hr:6 ())
-                       ~zone:display_zone
-                     |> Option.some
-                 ; sunset =
-                     Time_ns.occurrence
-                       `First_after_or_at
-                       now
-                       ~ofday:(Time_ns.Ofday.create ~hr:20 ())
-                       ~zone:display_zone
-                     |> Option.some
-                 ; moon_phase = Some 0.7
-                 }
-               ]
-           }
-         in
-         let weather =
-           Weather_info.create ~look_forward_hours:8 ~now ~forecast ~us_aqi:(Some 123.)
-         in
+         let weather = Weather_info.Testing_data.stormy ~hour_start ~zone:display_zone in
          return
            (Or_error.map weather ~f:(fun weather ->
               preset_draw_inputs ~font ~message ~now ~weather))
        | Errors_alerts ->
-         let weather =
-           { Weather_info.current_temperature_celsius = None
-           ; low_temperature_celsius = None
-           ; high_temperature_celsius = None
-           ; maximum_uv_index = None
-           ; us_aqi = None
-           ; conditions = Weather_info.Conditions.Not_cloudy
-           ; moon_phase = None
-           ; sunrise =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:6 ())
-                 ~zone:display_zone
-           ; sunset =
-               Time_ns.occurrence
-                 `First_after_or_at
-                 now
-                 ~ofday:(Time_ns.Ofday.create ~hr:20 ())
-                 ~zone:display_zone
-           }
-         in
-         let citibike_status =
-           { Citibike_status.availability = Not_renting
-           ; parking = Not_accepting_returns
-           ; bikes_available_frac = 0.
-           }
-         in
-         let row line =
-           { Subway.Status.Row.line; westbound_minutes = []; eastbound_minutes = [] }
-         in
+         let weather = Weather_info.Testing_data.errors ~now ~zone:display_zone in
+         let citibike_status = Citibike_status.Testing_data.errors in
          return
            (Ok
               { Draw_inputs.device_status = { battery_voltage = None }
@@ -830,11 +709,9 @@ let render input cache ~message =
               ; west_status = citibike_status
               ; barclay_status = citibike_status
               ; fulton_status = citibike_status
-              ; bedford_status = { Subway.Status.rows = [ row L ]; has_alert = true }
+              ; bedford_status = Subway.Status.Testing_data.errors ~lines:[ L ]
               ; marcy_status =
-                  { Subway.Status.rows = [ row J_and_Z_but_call_it_J; row M ]
-                  ; has_alert = true
-                  }
+                  Subway.Status.Testing_data.errors ~lines:[ J_and_Z_but_call_it_J; M ]
               ; now
               }))
   in

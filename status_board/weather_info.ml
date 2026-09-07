@@ -210,3 +210,116 @@ let%expect_test
      (18 (0.8)))
     |}]
 ;;
+
+module Testing_data = struct
+  let celsius_of_fahrenheit fahrenheit = (fahrenheit -. 32.) *. 5. /. 9.
+
+  let dense_text ~now ~zone =
+    { current_temperature_celsius = Some (celsius_of_fahrenheit 104.)
+    ; low_temperature_celsius = Some (celsius_of_fahrenheit 99.)
+    ; high_temperature_celsius = Some (celsius_of_fahrenheit 109.)
+    ; maximum_uv_index = Some 10.
+    ; us_aqi = Some 499.
+    ; conditions =
+        Conditions.Cloudy
+          (Some
+             { precipitation = { kind = Snow; thunder = false }
+             ; samples =
+                 List.init 9 ~f:(fun hour ->
+                   { Precipitation.Sample.time =
+                       Time_ns.add now (Time_ns.Span.of_int_hr hour)
+                   ; probability_frac = Some 1.
+                   })
+             })
+    ; moon_phase = Some 0.7
+    ; sunrise =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+          ~zone
+    ; sunset =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+          ~zone
+    }
+  ;;
+
+  let stormy ~hour_start ~zone =
+    let now = Time_ns.add hour_start (Time_ns.Span.of_min 30.) in
+    let hourly =
+      List.init 10 ~f:(fun hour ->
+        let precipitation =
+          Some { Feeds.Weather.Precipitation.kind = Rain_and_snow; thunder = true }
+        in
+        let preceding_hour_precipitation_probability =
+          match hour with
+          | 3 -> None
+          | _ -> Some (100 - (Int.abs (4 - hour) * 20))
+        in
+        { Feeds.Weather.Hourly.time = Time_ns.add hour_start (Time_ns.Span.of_int_hr hour)
+        ; temperature_2m = Some (celsius_of_fahrenheit 32.)
+        ; preceding_hour_precipitation_probability
+        ; conditions = Some (Cloudy precipitation)
+        ; uv_index = None
+        })
+    in
+    let forecast =
+      { Feeds.Weather.Forecast.timezone = Time_ns_unix.Zone.to_string zone
+      ; current =
+          { time = now
+          ; interval_seconds = 900
+          ; temperature_2m = Some (celsius_of_fahrenheit 32.)
+          ; conditions = None
+          ; uv_index = None
+          }
+      ; hourly
+      ; daily =
+          [ { date = Time_ns.to_date now ~zone
+            ; sunrise =
+                Time_ns.occurrence
+                  `First_after_or_at
+                  now
+                  ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+                  ~zone
+                |> Option.some
+            ; sunset =
+                Time_ns.occurrence
+                  `First_after_or_at
+                  now
+                  ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+                  ~zone
+                |> Option.some
+            ; moon_phase = Some 0.7
+            }
+          ]
+      }
+    in
+    create ~look_forward_hours:8 ~now ~forecast ~us_aqi:(Some 123.)
+  ;;
+
+  let errors ~now ~zone =
+    { current_temperature_celsius = None
+    ; low_temperature_celsius = None
+    ; high_temperature_celsius = None
+    ; maximum_uv_index = None
+    ; us_aqi = None
+    ; conditions = Conditions.Not_cloudy
+    ; moon_phase = None
+    ; sunrise =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:6 ())
+          ~zone
+    ; sunset =
+        Time_ns.occurrence
+          `First_after_or_at
+          now
+          ~ofday:(Time_ns.Ofday.create ~hr:20 ())
+          ~zone
+    }
+  ;;
+end
