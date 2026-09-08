@@ -48,7 +48,7 @@ let create (station : Feeds.Citibike.Station.t) =
 
 let parking_size style =
   let count_width, _ =
-    Font.max_width
+    Drawing.Font.max_width
       (Status_box.Style.font style)
       [ `Number (0, 99) ]
       ~size:(Status_box.Style.primary_font_size style)
@@ -74,26 +74,26 @@ let availability ~style ~label t =
     | Not_renting -> Status_box.Style.error_fill style, None
     | Renting { classic_bikes_available; electric_bikes_available } ->
       let fill =
-        Drawing.Fill.fractional
+        Drawing.Primitives.Fill.fractional
           ~frac:t.bikes_available_frac
           ~frontier_angle_degrees:15.
           ~size:(width, height)
       in
       let size = Status_box.Style.primary_font_size style in
-      let text_fill = Drawing.Fill.invert fill in
+      let text_fill = Drawing.Primitives.Fill.invert fill in
       let classic =
-        Drawing.Text.create
+        Drawing.Primitives.text
           ~font
           ~size
           ~fill:text_fill
           (Int.to_string classic_bikes_available)
       and electric =
-        Drawing.Text.create
+        Drawing.Primitives.text
           ~font
           ~size
           ~fill:text_fill
           (Int.to_string electric_bikes_available)
-      and label = Drawing.Text.create ~font ~size:22. ~fill:text_fill "e" in
+      and label = Drawing.Primitives.text ~font ~size:22. ~fill:text_fill "e" in
       fill, Some (classic, electric, label)
   in
   let content =
@@ -126,17 +126,17 @@ let parking ~style ~label t =
     | Not_accepting_returns -> Status_box.Style.error_fill style, None
     | Accepting_returns { docks_available } ->
       let fill =
-        Drawing.Fill.fractional
+        Drawing.Primitives.Fill.fractional
           ~frac:t.bikes_available_frac
           ~frontier_angle_degrees:15.
           ~size:(width, height)
       in
       ( fill
       , Some
-          (Drawing.Text.create
+          (Drawing.Primitives.text
              ~font:(Status_box.Style.font style)
              ~size:(Status_box.Style.primary_font_size style)
-             ~fill:(Drawing.Fill.invert fill)
+             ~fill:(Drawing.Primitives.Fill.invert fill)
              (Int.to_string docks_available)) )
   in
   let content =

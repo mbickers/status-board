@@ -68,7 +68,7 @@ let respond t ~path:(`Exact _) ~body:_ request =
          ~headers:
            (Cohttp.Header.of_list
               [ "content-type", "image/bmp"; "cache-control", "no-store" ])
-         (Bitmap.encode_bmp bitmap)
+         (Drawing.Bitmap.encode_bmp bitmap)
      | Error error ->
        Http.string_response ~status:`Internal_server_error (Error.to_string_hum error))
   | _ -> Http.string_response ~status:`Not_found "Not found"

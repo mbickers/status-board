@@ -2,12 +2,12 @@ open! Core
 
 val draw_sun_moon
   :  Drawing.Context.t
-  -> light_fill:Drawing.Fill.t
-  -> dark_fill:Drawing.Fill.t
+  -> light_fill:Drawing.Primitives.Fill.t
+  -> dark_fill:Drawing.Primitives.Fill.t
   -> is_night:bool
   -> weather:Weather_info.t
-  -> font:Font.t
-  -> text_fill:Drawing.Fill.t
+  -> font:Drawing.Font.t
+  -> text_fill:Drawing.Primitives.Fill.t
   -> status_text_size:float
   -> center:int * int
   -> radius:int
@@ -15,7 +15,7 @@ val draw_sun_moon
 
 val draw_cloud
   :  Drawing.Context.t
-  -> fill:Drawing.Fill.t
+  -> fill:Drawing.Primitives.Fill.t
   -> graph_style:Drawing.Graph.Style.t
   -> zone:Time_ns_unix.Zone.t
   -> padding:int

@@ -2,11 +2,11 @@ open! Core
 
 module Style = struct
   type t =
-    { font : Font.t
+    { font : Drawing.Font.t
     ; base_padding : int
     ; primary_font_size : float
     ; label_size : float
-    ; error_fill : Drawing.Fill.t
+    ; error_fill : Drawing.Primitives.Fill.t
     }
 
   let create ~font ~base_padding ~primary_font_size ~label_size ~error_fill =
@@ -22,14 +22,14 @@ module Style = struct
   let error_fill t = t.error_fill
 end
 
-let create ?(fill = Drawing.Fill.solid `w) ~style ~label ~content () =
+let create ?(fill = Drawing.Primitives.Fill.solid `w) ~style ~label ~content () =
   let size = Drawing.Element.size content in
   let label =
-    Drawing.Text.create
+    Drawing.Primitives.text
       ~font:(Style.font style)
       ~size:(Style.label_size style)
-      ~fill:(Drawing.Fill.solid `b)
-      ~halo:(3, Drawing.Fill.solid `w)
+      ~fill:(Drawing.Primitives.Fill.solid `b)
+      ~halo:(3, Drawing.Primitives.Fill.solid `w)
       label
   in
   Drawing.Element.create
@@ -40,7 +40,7 @@ let create ?(fill = Drawing.Fill.solid `w) ~style ~label ~content () =
       and bottom = top + height in
       let radius = 10
       and stroke_width = 4
-      and stroke_fill = Drawing.Fill.solid `b in
+      and stroke_fill = Drawing.Primitives.Fill.solid `b in
       let box_context =
         Drawing.Context.crop context ~offset:(left, top) ~size:(right - left, bottom - top)
       in

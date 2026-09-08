@@ -19,21 +19,25 @@ module Line = struct
   ;;
 
   let fill = function
-    | L -> Drawing.Fill.bayer_exn ?size:None ?offset:None ~white_frac:(9. /. 16.)
-    | M -> Drawing.Fill.bayer_exn ?size:None ~offset:(1, 1) ~white_frac:(10. /. 16.)
+    | L ->
+      Drawing.Primitives.Fill.bayer_exn ?size:None ?offset:None ~white_frac:(9. /. 16.)
+    | M ->
+      Drawing.Primitives.Fill.bayer_exn ?size:None ~offset:(1, 1) ~white_frac:(10. /. 16.)
     | J_and_Z_but_call_it_J ->
-      Drawing.Fill.bayer_exn ?size:None ?offset:None ~white_frac:(1. /. 16.)
+      Drawing.Primitives.Fill.bayer_exn ?size:None ?offset:None ~white_frac:(1. /. 16.)
   ;;
 end
 
 let stroke ~casing_fill fill =
-  let casing = Drawing.Stroke.create casing_fill 12 in
-  Drawing.Stroke.create ~casing fill 8
+  let casing = Drawing.Primitives.Stroke.create casing_fill 12 in
+  Drawing.Primitives.Stroke.create ~casing fill 8
 ;;
 
 let stroke_safe_padding =
-  Drawing.Stroke.safe_padding
-    (stroke ~casing_fill:(Drawing.Fill.solid `b) (Drawing.Fill.solid `b))
+  Drawing.Primitives.Stroke.safe_padding
+    (stroke
+       ~casing_fill:(Drawing.Primitives.Fill.solid `b)
+       (Drawing.Primitives.Fill.solid `b))
 ;;
 
 module Status = struct
@@ -138,7 +142,7 @@ module Status = struct
         Status_box.Style.horizontal_padding_between_text style
       and departure_font_size = Status_box.Style.primary_font_size style in
       let maximum_direction_text_width, _ =
-        Font.max_width
+        Drawing.Font.max_width
           font
           [ `Number (0, 99); `String ","; `Number (0, 99); `String ","; `Number (0, 99) ]
           ~size:departure_font_size
@@ -158,7 +162,7 @@ module Status = struct
       and departure_font_size = Status_box.Style.primary_font_size style in
       let arrow_center_y = Float.of_int padding +. arrow_half_height
       and departure_line_height =
-        (Font.render_text font "0" ~size:departure_font_size).height
+        (Drawing.Font.render_text font "0" ~size:departure_font_size).height
       in
       let first_row_center_y =
         Int.of_float (arrow_center_y +. arrow_half_height)
@@ -195,7 +199,7 @@ module Status = struct
 
   let draw_directions context ~(layout : Layout.t) =
     let left, westbound_right, eastbound_left, right = columns layout in
-    let stroke = Drawing.Stroke.solid `b 2 in
+    let stroke = Drawing.Primitives.Stroke.solid `b 2 in
     let draw_arrow direction ~center_x =
       let tip_x, tail_x, arrowhead_x =
         match direction with
@@ -203,17 +207,17 @@ module Status = struct
         | `Right -> center_x + 9, center_x - 9, center_x + 3
       in
       let tip = Float.of_int tip_x, layout.arrow_center_y in
-      Drawing.Shapes.draw_line
+      Drawing.Primitives.draw_line
         context
         ~stroke
         (Float.of_int tail_x, layout.arrow_center_y)
         tip;
-      Drawing.Shapes.draw_line
+      Drawing.Primitives.draw_line
         context
         ~stroke
         tip
         (Float.of_int arrowhead_x, layout.arrow_center_y -. layout.arrow_half_height);
-      Drawing.Shapes.draw_line
+      Drawing.Primitives.draw_line
         context
         ~stroke
         tip
@@ -234,28 +238,28 @@ module Status = struct
           | minutes -> String.concat minutes ~sep:","
         in
         let bullet =
-          Drawing.Text.create
+          Drawing.Primitives.text
             ~font
             ~size:layout.bullet_font_size
-            ~fill:(Drawing.Fill.solid `w)
+            ~fill:(Drawing.Primitives.Fill.solid `w)
             (Line.to_string row.line)
         and west =
-          Drawing.Text.create
+          Drawing.Primitives.text
             ~font
             ~size:layout.departure_font_size
-            ~fill:(Drawing.Fill.solid `b)
+            ~fill:(Drawing.Primitives.Fill.solid `b)
             (departure_text row.westbound_minutes)
         and east =
-          Drawing.Text.create
+          Drawing.Primitives.text
             ~font
             ~size:layout.departure_font_size
-            ~fill:(Drawing.Fill.solid `b)
+            ~fill:(Drawing.Primitives.Fill.solid `b)
             (departure_text row.eastbound_minutes)
         in
         fun context ~center_y ->
           let text_left, westbound_right, eastbound_left, text_right = columns layout in
           let center_x = layout.padding + layout.bullet_radius in
-          Drawing.Shapes.circle
+          Drawing.Primitives.circle
             context
             ~fill:(Line.fill row.line)
             ~center:(center_x, center_y - 6)
@@ -289,11 +293,11 @@ module Status = struct
       | false -> None
       | true ->
         Some
-          (Drawing.Text.create
-             ~halo:(3, Drawing.Fill.solid `w)
+          (Drawing.Primitives.text
+             ~halo:(3, Drawing.Primitives.Fill.solid `w)
              ~font
              ~size:30.
-             ~fill:(Drawing.Fill.solid `b)
+             ~fill:(Drawing.Primitives.Fill.solid `b)
              "!!")
     in
     Drawing.Element.create

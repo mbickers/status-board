@@ -9,7 +9,7 @@ let render ~cache_path ~preset ~filename =
     Home.status_board.render (Preview preset) cache ~message
   in
   Deferred.Or_error.try_with (fun () ->
-    Writer.save filename ~contents:(Bitmap.encode_bmp bitmap))
+    Writer.save filename ~contents:(Drawing.Bitmap.encode_bmp bitmap))
 ;;
 
 let run ~cache_path ~port ~autoreload =
@@ -49,7 +49,7 @@ let run ~cache_path ~port ~autoreload =
         (`Exact "/messages")
         ~f:
           (Message_manager.respond message_manager ~validate:(fun message ->
-             Home.render_message ~fill:(Drawing.Fill.solid `b) message
+             Home.render_message ~fill:(Drawing.Primitives.Fill.solid `b) message
              |> Or_error.map ~f:ignore))
     ; Http.Handler.Route.create
         (`Prefix "/api")

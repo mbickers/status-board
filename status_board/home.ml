@@ -3,7 +3,7 @@ open! Async
 
 let max_width_message = String.make 14 'W'
 let status_text_size = 31.
-let font = lazy (Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
+let font = lazy (Drawing.Font.create ~ttf_file:"status_board/fonts/inter_medium.ttf")
 
 let render_message ~fill message =
   let%bind.Or_error () =
@@ -12,8 +12,10 @@ let render_message ~fill message =
     | false -> Or_error.error_string "messages must contain only ASCII characters"
   in
   let%bind.Or_error font = Lazy.force font in
-  let element = Drawing.Text.create ~font ~fill message ~size:status_text_size in
-  let limit = Drawing.Text.create ~font ~fill max_width_message ~size:status_text_size in
+  let element = Drawing.Primitives.text ~font ~fill message ~size:status_text_size in
+  let limit =
+    Drawing.Primitives.text ~font ~fill max_width_message ~size:status_text_size
+  in
   let width, _ = Drawing.Element.size element
   and max_width, _ = Drawing.Element.size limit in
   match width <= max_width with
@@ -72,9 +74,9 @@ let draw_bird context ~wing_width ~center:(x, y) =
   let x = Float.of_int x
   and y = Float.of_int y in
   let wing_width = Float.of_int wing_width in
-  let stroke = Drawing.Stroke.solid `b 2 in
+  let stroke = Drawing.Primitives.Stroke.solid `b 2 in
   List.iter [ -1.; 1. ] ~f:(fun direction ->
-    Drawing.Shapes.draw_quadratic_curve
+    Drawing.Primitives.draw_quadratic_curve
       context
       ~stroke
       ( (x, y)
@@ -101,7 +103,7 @@ let draw
   let open Drawing.O in
   let w = 800
   and h = 480 in
-  let bitmap = Bitmap.create ~width:w ~height:h in
+  let bitmap = Drawing.Bitmap.create ~width:w ~height:h in
   let context = Context.create bitmap in
   let is_night, sun_moon_progress_frac = day_night_phase weather ~at:now in
   (* define fills together to make editing easier *)
@@ -166,10 +168,12 @@ let draw
   in
   let status_text_padding = base_padding in
   let rendered_voltage =
-    Text.create ~font ~fill:device_status_text_fill voltage_text ~size:status_text_size
+    text ~font ~fill:device_status_text_fill voltage_text ~size:status_text_size
   and rendered_updated =
-    Text.create ~font ~fill:device_status_text_fill updated_text ~size:status_text_size
-  and rendered_status_height = Font.render_text font "Ag" ~size:status_text_size in
+    text ~font ~fill:device_status_text_fill updated_text ~size:status_text_size
+  and rendered_status_height =
+    Drawing.Font.render_text font "Ag" ~size:status_text_size
+  in
   let status_text_baseline = status_text_padding + rendered_status_height.baseline_y in
   let%bind.Or_error message =
     match message with
@@ -251,7 +255,7 @@ let draw
   let manhattan_corner_radius = 20 in
   let manhattan_top = map_faded_top - manhattan_corner_radius in
   let manhattan_path =
-    Path_resolver_step.resolve
+    Path_resolver.resolve
       [ Point (manhattan_left, manhattan_top)
       ; Point (manhattan_left, manhattan_bottom - manhattan_inset)
       ; Offset (manhattan_inset, manhattan_inset)
@@ -492,7 +496,7 @@ let draw
    | Some aqi when Float.(aqi > 100.) ->
      let aqi = Int.to_string (Float.iround_nearest_exn aqi) in
      let aqi_text =
-       Text.create
+       text
          ~font
          ~fill:(solid inverse_background_color)
          [%string "AQI %{aqi}"]
@@ -623,7 +627,9 @@ let live_draw_inputs cache ~device_status ~message ~now =
 ;;
 
 let preset_draw_inputs ~font ~message ~now ~weather =
-  let _, widest_two_digit_number = Font.max_width font [ `Number (12, 99) ] ~size:20. in
+  let _, widest_two_digit_number =
+    Drawing.Font.max_width font [ `Number (12, 99) ] ~size:20.
+  in
   let widest_two_digit_number = Int.of_string widest_two_digit_number in
   let citibike_status =
     Citibike_status.Testing_data.dense_text ~widest_two_digit_number

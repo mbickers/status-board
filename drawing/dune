@@ -1,0 +1,5 @@
+(library
+ (name drawing)
+ (libraries core stb_truetype)
+ (preprocess
+  (pps ppx_jane)))

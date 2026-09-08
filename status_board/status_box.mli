@@ -4,24 +4,24 @@ module Style : sig
   type t
 
   val create
-    :  font:Font.t
+    :  font:Drawing.Font.t
     -> base_padding:int
     -> primary_font_size:float
     -> label_size:float
-    -> error_fill:Drawing.Fill.t
+    -> error_fill:Drawing.Primitives.Fill.t
     -> t
 
-  val font : t -> Font.t
+  val font : t -> Drawing.Font.t
   val base_padding : t -> int
   val horizontal_padding_between_text : t -> int
   val baseline_padding : t -> int
   val primary_font_size : t -> float
   val label_size : t -> float
-  val error_fill : t -> Drawing.Fill.t
+  val error_fill : t -> Drawing.Primitives.Fill.t
 end
 
 val create
-  :  ?fill:Drawing.Fill.t
+  :  ?fill:Drawing.Primitives.Fill.t
   -> style:Style.t
   -> label:string
   -> content:Drawing.Element.t

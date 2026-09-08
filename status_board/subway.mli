@@ -6,10 +6,14 @@ module Line : sig
     | M
     | J_and_Z_but_call_it_J
 
-  val fill : t -> Drawing.Fill.t
+  val fill : t -> Drawing.Primitives.Fill.t
 end
 
-val stroke : casing_fill:Drawing.Fill.t -> Drawing.Fill.t -> Drawing.Stroke.t
+val stroke
+  :  casing_fill:Drawing.Primitives.Fill.t
+  -> Drawing.Primitives.Fill.t
+  -> Drawing.Primitives.Stroke.t
+
 val stroke_safe_padding : int
 
 module Status : sig

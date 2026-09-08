@@ -2,6 +2,6 @@
  (name status_board)
  (inline_tests)
  (wrapped false)
- (libraries core async feeds stb_truetype)
+ (libraries core async drawing feeds)
  (preprocess
   (pps ppx_jane)))

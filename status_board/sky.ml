@@ -76,12 +76,12 @@ let draw_sun_moon
       match Float.compare uv 6. > 0 with
       | false -> None
       | true ->
-        let text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
-        Some (Text.create ~font ~fill:text_fill ~size:status_text_size text))
+        let uv_text = "uv " ^ (uv |> Float.iround_nearest_exn |> Int.to_string) in
+        Some (text ~font ~fill:text_fill ~size:status_text_size uv_text))
   in
   let labels =
-    [ Text.create ~font ~fill:text_fill ~size:temperature_size temperature_text
-    ; Text.create ~font ~fill:text_fill ~size:status_text_size low_high_text
+    [ text ~font ~fill:text_fill ~size:temperature_size temperature_text
+    ; text ~font ~fill:text_fill ~size:status_text_size low_high_text
     ]
     @ Option.to_list uv_label
   in
