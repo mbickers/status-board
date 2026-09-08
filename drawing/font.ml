@@ -11,7 +11,8 @@ module Rendered_text = struct
 end
 
 type t =
-  { _buffer : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+  { (* Stb_truetype docs say we need to keep around buffer reference. *)
+    _buffer : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
   ; font : Stb_truetype.t
   }
 
