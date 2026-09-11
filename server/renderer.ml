@@ -70,6 +70,9 @@ let respond t ~path:(`Exact _) ~body:_ request =
               [ "content-type", "image/bmp"; "cache-control", "no-store" ])
          (Drawing.Bitmap.encode_bmp bitmap)
      | Error error ->
+       let request_url = Cohttp.Request.uri request |> Uri.to_string in
+       [%log.global.error
+         "Failed to render image" (request_url : string) (error : Error.t)];
        Http.string_response ~status:`Internal_server_error (Error.to_string_hum error))
   | _ -> Http.string_response ~status:`Not_found "Not found"
 ;;

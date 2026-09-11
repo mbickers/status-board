@@ -84,6 +84,17 @@ let draw_bird context ~wing_width ~center:(x, y) =
       , (x +. (direction *. wing_width), y -. 6.) ))
 ;;
 
+let battery_percentage ~voltage =
+  let breakpoint_percentage = 11.25 in
+  let percentage =
+    match Float.compare voltage 3.4 <= 0 with
+    | true -> breakpoint_percentage *. (voltage -. 2.7) /. 0.7
+    | false ->
+      breakpoint_percentage +. ((100. -. breakpoint_percentage) *. (voltage -. 3.4) /. 0.7)
+  in
+  Float.min 100. (Float.max 0. percentage)
+;;
+
 let draw
       ~font
       { Draw_inputs.device_status
@@ -157,18 +168,19 @@ let draw
       ~primary_font_size:40.
       ~error_fill:(bayer_exn ~white_frac:0.7)
   in
-  let voltage_text =
+  let battery_text =
     match device_status.battery_voltage with
     | Some battery_voltage ->
-      [%string "voltage %{Float.to_string_hum battery_voltage ~decimals:1}V"]
-    | None -> "voltage unknown"
+      let percentage = battery_percentage ~voltage:battery_voltage in
+      [%string "%{Float.to_string_hum percentage ~decimals:0}%"]
+    | None -> "??%"
   and updated_text =
     [ "updated"; Time_ns_unix.format now "%H:%M" ~zone:display_zone ]
     |> String.concat ~sep:" "
   in
   let status_text_padding = base_padding in
-  let rendered_voltage =
-    text ~font ~fill:device_status_text_fill voltage_text ~size:status_text_size
+  let rendered_battery =
+    text ~font ~fill:device_status_text_fill battery_text ~size:status_text_size
   and rendered_updated =
     text ~font ~fill:device_status_text_fill updated_text ~size:status_text_size
   and rendered_status_height =
@@ -454,7 +466,7 @@ let draw
     ~center:sun_moon_center
     ~radius:sun_moon_radius;
   Element.draw
-    rendered_voltage
+    rendered_battery
     context
     ((Left, status_text_padding), (Baseline, status_text_baseline));
   Element.draw
@@ -582,30 +594,21 @@ let live_draw_inputs cache ~device_status ~message ~now =
        Feeds.Latest_result.latest_success weather_result
        |> Or_error.map ~f:(fun completed -> completed.value)
      and mta_subway_status = mta_subway_status_result in
-     let find_station = Map.find_or_error citibike_stations in
+     let station_status station_id =
+       match Map.find citibike_stations station_id with
+       | Some station -> Citibike_status.create station
+       | None ->
+         { Citibike_status.availability = Not_renting
+         ; parking = Not_accepting_returns
+         ; bikes_available_frac = 0.
+         }
+     in
      let%map.Or_error weather =
        Weather_info.create
          ~look_forward_hours:8
          ~now
          ~forecast
          ~us_aqi:air_quality.current.us_aqi
-     and bridge_status =
-       find_station "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
-       |> Or_error.map ~f:Citibike_status.create
-     and roebling_status =
-       find_station "66dced76-0aca-11e7-82f6-3863bb44ef7c"
-       |> Or_error.map ~f:Citibike_status.create
-     and vesey_status =
-       find_station "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
-       |> Or_error.map ~f:Citibike_status.create
-     and west_status =
-       find_station "2170352212111402482" |> Or_error.map ~f:Citibike_status.create
-     and barclay_status =
-       find_station "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
-       |> Or_error.map ~f:Citibike_status.create
-     and fulton_status =
-       find_station "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
-       |> Or_error.map ~f:Citibike_status.create
      and bedford_status =
        Subway.Status.create mta_subway_status ~now ~station_id:"L08" ~rows:bedford_rows
      and marcy_status =
@@ -614,12 +617,12 @@ let live_draw_inputs cache ~device_status ~message ~now =
      { Draw_inputs.device_status
      ; message
      ; weather
-     ; bridge_status
-     ; roebling_status
-     ; vesey_status
-     ; west_status
-     ; barclay_status
-     ; fulton_status
+     ; bridge_status = station_status "66dc8768-0aca-11e7-82f6-3863bb44ef7c"
+     ; roebling_status = station_status "66dced76-0aca-11e7-82f6-3863bb44ef7c"
+     ; vesey_status = station_status "66db8d89-0aca-11e7-82f6-3863bb44ef7c"
+     ; west_status = station_status "2170352212111402482"
+     ; barclay_status = station_status "66dbf73d-0aca-11e7-82f6-3863bb44ef7c"
+     ; fulton_status = station_status "66db79a3-0aca-11e7-82f6-3863bb44ef7c"
      ; bedford_status
      ; marcy_status
      ; now
